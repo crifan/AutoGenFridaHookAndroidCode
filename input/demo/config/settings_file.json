@@ -1,0 +1,11 @@
+{
+  "config": {
+    "displayFuncNameWithParas": false
+  },
+  "toHook": {
+    "fromFile": [
+      "input/demo/file/Aoi.java"
+    ],
+    "fromConfig": []
+  }
+}

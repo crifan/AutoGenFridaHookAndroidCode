@@ -1,0 +1,83 @@
+{
+  "config": {
+    "displayFuncNameWithParas": false
+  },
+  "toHook": {
+    "fromFile": [],
+    "fromConfig": [
+      {
+        "class": {
+          "name": "Aoi",
+          "package": "com.aSIIoEMUzSX"
+        },
+        "functions": [
+          {
+            "defineSource": "public Aoi(AAk aAk) {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public static IBinder b(String str) {",
+            "defineFrida": "public static android.os.IBinder com.aSIIoEMUzSXAoi.b(java.lang.String)",
+            "isOverload": true
+          },
+          {
+            "defineSource": "private static long getNativePtr(Parcel parcel) {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public static void main(String[] strArr) {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final int a(String str, String str2) {",
+            "defineFrida": "public final int a(java.lang.String,java.lang.String)",
+            "isOverload": true
+          },
+          {
+            "defineSource": "public final void a() {",
+            "defineFrida": "public final void a()",
+            "isOverload": true
+          },
+          {
+            "defineSource": "public final void b() {",
+            "defineFrida": "public final void b()",
+            "isOverload": true
+          },
+          {
+            "defineSource": "public boolean b(Intent intent) {",
+            "defineFrida": "public boolean b(android.content.Intent)",
+            "isOverload": true
+          },
+          {
+            "defineSource": "public final void c() {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final void d() {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final void e() {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final Parcel getPa(int i) {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final void h() {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final void ra() {",
+            "defineFrida": ""
+          },
+          {
+            "defineSource": "public final void ra2() {",
+            "defineFrida": ""
+          }
+        ]
+      }
+    ]
+  }
+}
