@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250318
+# Update: 20250325
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -44,7 +44,7 @@ funcCallTemplate = string.Template("this.$toCallFuncName($parasStr)")
 
 retPartTemplate_void = string.Template("""return $funcCallCode""")
 retPartTemplate_nonvoid = string.Template("""var $retValName = $funcCallCode
-        console.log("$displayFuncName => $retValName=" + $retValName)
+        console.log(funcName + " => $retValName=" + $retValName)
         return $retValName""")
 
 hookCurFuncTemplate = string.Template("""
@@ -118,12 +118,18 @@ $allClassHookCode
 # gFuncDefPattern = r"((?P<overrideStr>\@Override)\s+)?" + r"(?P<funcModifier>(((public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)" + r"(((?P<retType>[\w\.\[\]\<\>\, ]+)\s+))?" + r"(?P<funcName>[\w\$]+)" + r"\(" + r"(?P<typeParas>[^\)]+)?" + r"\)" + r"(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?" + r"( \{)?"
 # overrideP = r"((?P<overrideStr>\@Override)\s+)?"
 overrideP = r"((?P<overrideStr>\@Override)[ \t]+)?"
-funcModifierP = r"(?P<funcModifier>(((public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
+
+# protected final boolean s(String s, byte[] arr_b, String s1, String s2) {
+funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
+
 retTypeP = r"((?P<retType>[\w\.\[\]\<\>\, ]+)\s+)?"
 funcNameP = r"(?P<funcName>[\w\$]+)"
 typeParasP = r"(?P<typeParas>[^\)]+)?"
 throwsP = r"(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?"
-tailP = r"( \{)?"
+
+# tailP = r"( \{)?"
+#     INITIATOR_CATEGORY_UNSPECIFIED(0),
+tailP = r"( \{)?$"
 # gFuncDefPattern = overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP
 gFuncDefPattern = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP + r")"
 
@@ -235,7 +241,7 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
     throwsStr = funcDefMatch.group("throwsStr")
     print("throwsStr=%s" % throwsStr)
   else:
-    Exception("Not support format for function define source: %s" % funcDefSrc)
+    raise Exception("Not support format for function define source: %s" % funcDefSrc)
 
   defineSourceDict = {
     "overrideStr": overrideStr,
@@ -287,9 +293,9 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
         }
         typeParaDictList.append(curTypeParaDict)
     else:
-      Exception("Unsupport format for type para strings: %s" % typeParas)
+      raise Exception("Unsupport format for type para strings: %s" % typeParas)
   # else:
-  #   Exception("Not support format for type para strings: %s" % typeParas)
+  #   raise Exception("Not support format for type para strings: %s" % typeParas)
   print("typeParaDictList=%s" % typeParaDictList)
 
   # defineSourceDict = {
@@ -336,7 +342,7 @@ def genRetValueName(isCtor, className, retType, funcNameVar, isFuncOverload, ove
 
     retValName = "%s%s" % (retPref, firstCharUpperedRetType)
     # retboolean -> retBoolean
-  
+
   if isFuncOverload:
     retValName = "%s_%s" % (retValName, overloadFuncNameSuffix)
 
@@ -418,7 +424,7 @@ def genReturnPartCode(retType, funcCallCode, isCtor, className, funcNameVar, isF
   else:
     retValName = genRetValueName(isCtor, className, retType, funcNameVar, isFuncOverload, overloadFuncNameSuffix)
 
-    retPartCode = retPartTemplate_nonvoid.safe_substitute(retValName=retValName, funcCallCode=funcCallCode, displayFuncName=displayFuncName)
+    retPartCode = retPartTemplate_nonvoid.safe_substitute(retValName=retValName, funcCallCode=funcCallCode)
 
   print("retPartCode=%s" % retPartCode)
   return retPartCode
@@ -563,6 +569,10 @@ def parseClassPackage(javaSrcStr):
     classPackage = ""
     if classPackageMatch:
       classPackage = classPackageMatch.group("classPackage")
+
+      # Note: special, for 'jadx/sources/defpackage/ccul.java' is 'package defpackage;' is 'defpackage', actually is None = no package
+      if classPackage == "defpackage":
+        classPackage = ""
     print("classPackage=%s" % classPackage)
     return classPackage
 
@@ -572,9 +582,13 @@ def parseClassName(javaSrcStr):
     # public final class ftzv implements ftzu {
     # public class TokenResponse extends AbstractSafeParcelable implements ReflectedParcelable {
     classModifierP = r"(?P<classModifier>(((public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
+
+    # public enum arok implements fjgu {
+    classOrEnumP = r"(((class)|(enum))\s+)"
+
     classNameP = r"(?P<className>[\w\$\.]+)"
     classSuffixP = r"(?P<classSuffix>\s+((extends)|(implements))\s+[^\{]+)?"
-    classNamePatter = classModifierP + r"class " + classNameP + classSuffixP + r"\s+\{"
+    classNamePatter = classModifierP + classOrEnumP + classNameP + classSuffixP + r"\s+\{"
 
     # TODO: for class name contain '.', convert to '$'
     # eg: xxx.yyy -> xxx$yyy
@@ -596,7 +610,7 @@ def parseClassName(javaSrcStr):
       classSuffix = classNameMatch.group("classSuffix")
       print("classSuffix=%s" % classSuffix)
     else:
-      Exception("Unsupported format of class name for:\n%s" % javaSrcStr)
+      raise Exception("Unsupported format of class name for:\n%s" % javaSrcStr)
 
     classNameDict = {
       "classNameWholeStr": classNameWholeStr,
@@ -745,12 +759,12 @@ print("displayFuncNameWithParas=%s" % displayFuncNameWithParas)
 if hookFromFileList:
   toHookDictList = genToHookClassConfig(hookFromFileList)
 
-  # for debug
-  dbgToHookDictFilename = "tmpToHookDict_%s.json" % curDateTimeStr
-  print("dbgToHookDictFilename=%s" % dbgToHookDictFilename)
-  dbgToHookDictFullPath = os.path.join("debugging", dbgToHookDictFilename)
-  print("dbgToHookDictFullPath=%s" % dbgToHookDictFullPath)
-  saveJsonToFile(dbgToHookDictFullPath, toHookDictList)
+  # # for debug
+  # dbgToHookDictFilename = "tmpToHookDict_%s.json" % curDateTimeStr
+  # print("dbgToHookDictFilename=%s" % dbgToHookDictFilename)
+  # dbgToHookDictFullPath = os.path.join("debugging", "tmpToHookDict", dbgToHookDictFilename)
+  # print("dbgToHookDictFullPath=%s" % dbgToHookDictFullPath)
+  # saveJsonToFile(dbgToHookDictFullPath, toHookDictList)
 else:
   toHookDictList = hookFromConfigList
 print("toHookDictList=%s" % toHookDictList)

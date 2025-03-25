@@ -14,7 +14,7 @@ Auto generate Frida hook js code for Android class and functions from config or 
 
 ## Usage
 
-## 1. Prepare config
+### 1. Prepare config
 
 Support two config type:
 
@@ -27,7 +27,7 @@ Support two config type:
 
 you can choose any one you want
 
-### About: Load to hook from **file**
+#### About: Load to hook from **file**
 
 most common used one
 
@@ -51,7 +51,7 @@ look like:
 
 then all done !
 
-### About: Load to hook from **config**
+#### About: Load to hook from **config**
 
 this type is useful when you no (jadx/JEB decompiled) java source file, such as Android build-in Classes
 
@@ -101,7 +101,7 @@ this type is useful when you no (jadx/JEB decompiled) java source file, such as 
 
 then can use current script to generate hook code
 
-## 2. Run script
+### 2. Run script
 
 run current script:
 
@@ -114,6 +114,11 @@ will generate Frida hook Android js code into:
 `output/fridaHookAndroid_<DATE>_<TIME>.js`
 
 ---
+
+## TODO
+
+* [ ] add frida define auto fill-in
+* [ ] print to logging
 
 ## Appendix
 
