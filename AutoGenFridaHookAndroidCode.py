@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250325
+# Update: 20250326
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -617,6 +617,10 @@ def parseClassName(javaSrcStr):
       print("classSuffix=%s" % classSuffix)
     else:
       raise Exception("Unsupported format of class name for:\n%s" % javaSrcStr)
+
+    # afl..ExternalSyntheticApiModelOutline6 -> afl$$ExternalSyntheticApiModelOutline6
+    className = className.replace(".", "$")
+    print("className=%s" % className)
 
     classNameDict = {
       "classNameWholeStr": classNameWholeStr,
