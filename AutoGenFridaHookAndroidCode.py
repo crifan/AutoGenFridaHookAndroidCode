@@ -530,7 +530,13 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     retPartCode = genReturnPartCode(retType, funcCallCode, isCtor, className, funcNameVar, isFuncOverload, overloadFuncNameSuffix, displayFuncName)
     print("retPartCode=%s" % retPartCode)
 
-    hookFuncName = "func_%s_%s" % (classNameVar, funcNameVar)
+    if isCtor:
+      # funcNameForHook = "init"
+      funcNameForHook = "ctor"
+    else:
+      funcNameForHook = funcNameVar
+    print("funcNameForHook=%s" % funcNameForHook)
+    hookFuncName = "func_%s_%s" % (classNameVar, funcNameForHook)
     print("hookFuncName=%s" % hookFuncName)
 
     if isFuncOverload:
