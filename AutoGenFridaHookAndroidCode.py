@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250326
+# Update: 20250327
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -201,6 +201,10 @@ def saveTextToFile(fullFilename, text, fileEncoding="utf-8"):
 # Current Functions
 ################################################################################
 
+def toVariableName(origName):
+  varName = re.sub(r"\W", "_", origName)
+  return varName
+
 def genClassHookCode(classConfigDict, className, classNameVar, classPackage):
   global hookClassTemplate
 
@@ -274,7 +278,10 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
     # typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\>]+\>))?) (?P<paraName>\w+)(, )?"
 
     # Executor executor, Continuation<TResult, Task<TContinuationResult>> continuation
-    typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\<]+(\<[^\>]+\>)?\>))?) (?P<paraName>\w+)(, )?"
+    # typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\<]+(\<[^\>]+\>)?\>))?) (?P<paraName>\w+)(, )?"
+
+    # String s, UrlRequest.Callback urlRequest$Callback0, Executor executor0
+    typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\<]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
 
     typeParasMatchIter = re.finditer(typeParasPattern, typeParas)
     typeParasMatchList = list(typeParasMatchIter)
@@ -285,6 +292,8 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
         paraType = eachTypeParaMatch.group("paraType")
         print("paraType=%s" % paraType)
         paraName = eachTypeParaMatch.group("paraName")
+        print("paraName=%s" % paraName)
+        paraName = toVariableName(paraName)
         print("paraName=%s" % paraName)
         curTypeParaDict = {
           "paraModifier": paraModifier,
@@ -327,7 +336,7 @@ def genRetValueName(isCtor, className, retType, funcNameVar, isFuncOverload, ove
     retValName = "%s%s" % (retPref, getValue)
     print("retValName=%s" % retValName)
   else:
-    retTypeVar = re.sub(r"\W", "_", retType)
+    retTypeVar = toVariableName(retType)
     print("retTypeVar=%s" % retTypeVar)
 
     # for debug
@@ -442,7 +451,7 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
 
   print("%s [%s] %s %s" % (mainDelimeterStr, curIdx, className, mainDelimeterStr))
 
-  classNameVar = re.sub(r"\W", "_", className)
+  classNameVar = toVariableName(className)
   print("classNameVar=%s" % classNameVar)
 
   hookClassStr = genClassHookCode(classConfigDict, className, classNameVar, classPackage)
@@ -520,7 +529,7 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     displayFuncName = genDisplayFunctionName(isCtor, className, funcName, isFuncOverload, overloadFuncNameSuffix, displayFuncNameWithParas, parasStr)
     print("displayFuncName=%s" % displayFuncName)
 
-    funcNameVar = re.sub(r"\W", "_", funcName)
+    funcNameVar = toVariableName(funcName)
     print("funcNameVar=%s" % funcNameVar)
 
     # # for debug
@@ -666,8 +675,11 @@ def parseFunctionsList(javaSrcStr):
   funcNameSet = set()
   overloadFuncNameSet = set()
 
+  origFunctionsDictList = []
   for funcIdx, functionMatch in enumerate(functionMatchList):
     funcName = functionMatch.group("funcName")
+    # typeParas = functionMatch.group("typeParas")
+    # retType = functionMatch.group("retType")
     # print("funcName=%s" % funcName)
     print("[%d] %s" % (funcIdx, funcName))
     # functionStr = functionMatch.group(0)
@@ -676,6 +688,8 @@ def parseFunctionsList(javaSrcStr):
     print("functionDefine=%s" % functionDefine)
     curFunctionDict = {
       "funcName": funcName,
+      # "typeParas": typeParas,
+      # "retType": retType,
       "defineSource": functionDefine,
       "defineFrida": "",
     }
@@ -687,15 +701,26 @@ def parseFunctionsList(javaSrcStr):
       funcNameSet.add(funcName)
 
     print("curFunctionDict=%s" % curFunctionDict)
-    functionsDictList.append(curFunctionDict)
+    origFunctionsDictList.append(curFunctionDict)
   
-  for curFunctionDict in functionsDictList:
-    funcName = curFunctionDict["funcName"]
-    del curFunctionDict["funcName"]
-    if funcName in overloadFuncNameSet:
-      # Note: will override existing dict value
-      curFunctionDict["isOverload"] = True
+  # generated for "isOverload"
+  overloadFunctionsDictList = []
+  for curOrigFunctionDict in origFunctionsDictList:
+    funcName = curOrigFunctionDict["funcName"]
+    functionDefine = curOrigFunctionDict["defineSource"]
+    defineFrida = curOrigFunctionDict["defineFrida"]
 
+    curOverloadFunctionsDict = {
+      # "funcName": funcName,
+      "defineSource": functionDefine,
+      "defineFrida": defineFrida,
+    }
+    if funcName in overloadFuncNameSet:
+      curOverloadFunctionsDict["isOverload"] = True
+
+    overloadFunctionsDictList.append(curOverloadFunctionsDict)
+
+  functionsDictList = overloadFunctionsDictList
   print("functionsDictList=%s" % functionsDictList)
   return functionsDictList
 
