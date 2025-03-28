@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250327
+# Update: 20250328
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -48,7 +48,7 @@ retPartTemplate_nonvoid = string.Template("""var $retValName = $funcCallCode
         return $retValName""")
 
 hookCurFuncTemplate = string.Template("""
-    // $funcDefSrc
+    $funcDefSrcHookCode
     // $funcDefFrida
     var $hookFuncName = cls_$classNameVar.$toFindFuncName
     console.log("$hookFuncName=" + $hookFuncName)
@@ -87,35 +87,15 @@ $allClassHookCode
 # synchronized Task getOrStartGetTokenRequest(final String str, GetTokenRequest getTokenRequest) {
 # abstract void    disconnect()
 # static boolean    getFollowRedirects()
-
-# gFuncDefPattern = r"((?P<modifier>(public( final)?)|(private)|(synchronized)) )?(?P<retType>[\w\.]+ )(?P<funcName>[\w\$]+)\((?P<typeParas>[\w,]+)?\)( \{)?"
-# gFuncDefPattern = r"((?P<modifier>(public( final)?)|(private)|(synchronized)) )?(?P<retType>[\w\.]+ )(?P<funcName>[\w\$]+)\((?P<typeParas>[\w,]+)?\)( \{)?"
-# gFuncDefPattern = r"((?P<funcModifier>(public( final)?)|(private)|(synchronized)) )?((?P<retType>[\w\.]+) )"
-# gFuncDefPattern = r"((?P<funcModifier>(public( final)?)|(private)|(synchronized)) )?((?P<retType>[\w\.]+) )(?P<funcName>[\w\$]+)\("
-# gFuncDefPattern = r"((?P<funcModifier>(public( final)?)|(private)|(synchronized)) )?((?P<retType>[\w\.]+) )(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)( \{)?"
-# gFuncDefPattern = r"(((?P<funcModifier>(public( final)?)|(private)|(synchronized)) )?((?P<retType>[\w\.]+) ))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)( \{)?"
-# gFuncDefPattern = r"(((?P<funcModifier>(public( final)?)|(private( static)?)|(synchronized)) )?((?P<retType>[\w\.\[\]]+) ))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)( \{)?"
-# gFuncDefPattern = r"(((?P<funcModifier>(public( final)?)|(private( static)?)|(synchronized)|(abstract))\s+)?((?P<retType>[\w\.\[\]]+)\s+))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)( \{)?"
-# gFuncDefPattern = r"(((?P<funcModifier>(public( final)?)|(private( static)?)|(synchronized)|(abstract)|(static))\s+)?((?P<retType>[\w\.\[\]]+)\s+))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)( \{)?"
-
 # "@Override public final void connect() throws IOException {",
 # public void myMethod() throws ArithmeticException, NullPointerException
-# gFuncDefPattern = r"((?P<overrideStr>\@Override)\s+)?(((?P<funcModifier>(public( final)?)|(private( static)?)|(synchronized)|(abstract)|(static))\s+)?((?P<retType>[\w\.\[\]]+)\s+))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?( \{)?"
-
 # @Override public final Map<String, List<String>> getHeaderFields() {
-# gFuncDefPattern = r"((?P<overrideStr>\@Override)\s+)?(((?P<funcModifier>(public( final)?)|(private( static)?)|(synchronized)|(abstract)|(static))\s+)?((?P<retType>[\w\.\[\]\<\>\, ]+)\s+))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?( \{)?"
-
 # public final Task<TResult> addOnSuccessListener(Activity activity, OnSuccessListener<? super TResult> onSuccessListener) {
-
 # public final <X extends Throwable> TResult getResult(Class<X> cls) {
 # public final <TContinuationResult> Task<TContinuationResult> continueWithTask(Executor executor, Continuation<TResult, Task<TContinuationResult>> continuation) {
-
 # private final void zzf() {
-# gFuncDefPattern = r"((?P<overrideStr>\@Override)\s+)?(((?P<funcModifier>(((public)|(private))( final)?)|(((public)|(private))( static)?)|(synchronized)|(abstract)|(static))\s+)?((?P<retType>[\w\.\[\]\<\>\, ]+)\s+))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?( \{)?"
-
 # static final void zza(TaskCompletionSource taskCompletionSource) {
-# gFuncDefPattern = r"((?P<overrideStr>\@Override)\s+)?(?P<funcModifier>(((public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)(((?P<retType>[\w\.\[\]\<\>\, ]+)\s+))?(?P<funcName>[\w\$]+)\((?P<typeParas>[^\)]+)?\)(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?( \{)?"
-# gFuncDefPattern = r"((?P<overrideStr>\@Override)\s+)?" + r"(?P<funcModifier>(((public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)" + r"(((?P<retType>[\w\.\[\]\<\>\, ]+)\s+))?" + r"(?P<funcName>[\w\$]+)" + r"\(" + r"(?P<typeParas>[^\)]+)?" + r"\)" + r"(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?" + r"( \{)?"
+
 # overrideP = r"((?P<overrideStr>\@Override)\s+)?"
 overrideP = r"((?P<overrideStr>\@Override)[ \t]+)?"
 
@@ -281,7 +261,34 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
     # typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\<]+(\<[^\>]+\>)?\>))?) (?P<paraName>\w+)(, )?"
 
     # String s, UrlRequest.Callback urlRequest$Callback0, Executor executor0
-    typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\<]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
+    # typeParasPattern = r"((?P<paraModifier>(final)|(private)) )?(?P<paraType>\w+((\[\])|(\<[^\<]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
+
+    """
+            CronetUrlRequestContext requestContext,
+            String url,
+            int priority,
+            UrlRequest.Callback callback,
+            Executor executor,
+            Collection<Object> requestAnnotations,
+            boolean disableCache,
+            boolean disableConnectionMigration,
+            boolean allowDirectExecutor,
+            boolean trafficStatsTagSet,
+            int trafficStatsTag,
+            boolean trafficStatsUidSet,
+            int trafficStatsUid,
+            RequestFinishedInfo.Listener requestFinishedListener,
+            int idempotency,
+            long networkHandle,
+            String method,
+            ArrayList<Map.Entry<String, String>> requestHeaders,
+            UploadDataProvider uploadDataProvider,
+            Executor uploadDataProviderExecutor,
+            byte[] dictionarySha256Hash,
+            ByteBuffer dictionary,
+            @NonNull String dictionaryId
+    """
+    typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>\w+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
 
     typeParasMatchIter = re.finditer(typeParasPattern, typeParas)
     typeParasMatchList = list(typeParasMatchIter)
@@ -552,8 +559,17 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
       hookFuncName = "%s_%s" % (hookFuncName, overloadFuncNameSuffix)
       print("hookFuncName=%s" % hookFuncName)
 
+    isFuncDefSrcMultiLine = ("\r" in funcDefSrc) or ("\n" in funcDefSrc)
+    print("isFuncDefSrcMultiLine=%s" % isFuncDefSrcMultiLine)
+    if isFuncDefSrcMultiLine:
+      indentStr = "    "
+      funcDefSrcHookCode = "/* %s%s%s*/" % (funcDefSrc, os.linesep, indentStr)
+    else:
+      funcDefSrcHookCode = "// %s" % funcDefSrc
+    print("funcDefSrcHookCode=%s" % funcDefSrcHookCode)
+
     hookCurFuncCode = hookCurFuncTemplate.safe_substitute(
-      funcDefSrc=funcDefSrc,
+      funcDefSrcHookCode=funcDefSrcHookCode,
       funcDefFrida=funcDefFrida,
       hookFuncName=hookFuncName,
       classNameVar=classNameVar,
@@ -580,7 +596,8 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
 def parseClassPackage(javaSrcStr):
     # package com.google.android.gms.auth.account.be.legacy;
     classPackagePattern = r"^package\s+(?P<classPackage>[\w\.]+);"
-    classPackageMatch = re.search(classPackagePattern, javaSrcStr)
+    # classPackageMatch = re.search(classPackagePattern, javaSrcStr)
+    classPackageMatch = re.search(classPackagePattern, javaSrcStr, re.MULTILINE)
     classPackage = ""
     if classPackageMatch:
       classPackage = classPackageMatch.group("classPackage")
@@ -686,6 +703,15 @@ def parseFunctionsList(javaSrcStr):
     # print("functionStr=%s" % functionStr)
     functionDefine = functionMatch.group("functionDefine")
     print("functionDefine=%s" % functionDefine)
+    hasMoreIndent = functionDefine.startswith(" ")
+    print("hasMoreIndent=%s" % hasMoreIndent)
+    # "    public void run() {" -> hasMoreIndent=True
+    isSubClassFunc = hasMoreIndent
+    print("isSubClassFunc=%s" % isSubClassFunc)
+    if isSubClassFunc:
+      print("WARN: omit sub/inner class function: %s" % functionDefine)
+      continue
+
     curFunctionDict = {
       "funcName": funcName,
       # "typeParas": typeParas,
