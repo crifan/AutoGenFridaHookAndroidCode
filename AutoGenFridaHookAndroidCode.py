@@ -288,7 +288,10 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
             ByteBuffer dictionary,
             @NonNull String dictionaryId
     """
-    typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>\w+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
+    # typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>\w+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
+
+    # final VersionSafeCallbacks.UrlRequestStatusListener listener, final int loadState
+    typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>[\w\.]+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
 
     typeParasMatchIter = re.finditer(typeParasPattern, typeParas)
     typeParasMatchList = list(typeParasMatchIter)
