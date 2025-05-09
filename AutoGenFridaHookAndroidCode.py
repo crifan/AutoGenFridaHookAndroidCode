@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250328
+# Update: 20250509
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -291,7 +291,16 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
     # typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>\w+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
 
     # final VersionSafeCallbacks.UrlRequestStatusListener listener, final int loadState
-    typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>[\w\.]+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
+    # typeParasPattern = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?(?P<paraType>[\w\.]+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?) (?P<paraName>[\w\$]+)(, )?"
+    paraModifierP = r"((?P<paraModifier>(final)|(private)|(@[\w\.]+)) )?"
+
+    # paraTypeP = r"(?P<paraType>[\w\.]+((\[\])|(\<[^\>]+(\<[^\>]+\>)?\>))?)"
+    # public fjgj(byte[] arr_b, byte[][] arr2_b) {
+    paraTypeP = r"(?P<paraType>[\w\.]+((\[\])+|(\<[^\>]+(\<[^\>]+\>)?\>))?)"
+
+    paraName = r"(?P<paraName>[\w\$]+)"
+    separatorP = r"(, )?"
+    typeParasPattern = paraModifierP + paraTypeP + " " + paraName + separatorP
 
     typeParasMatchIter = re.finditer(typeParasPattern, typeParas)
     typeParasMatchList = list(typeParasMatchIter)
