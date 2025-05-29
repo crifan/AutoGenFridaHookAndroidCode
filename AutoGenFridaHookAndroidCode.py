@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250509
+# Update: 20250529
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -43,9 +43,13 @@ hookClassTemplate = string.Template("""var clsName_$classNameVar = "$clsPkgName"
 funcCallTemplate = string.Template("this.$toCallFuncName($parasStr)")
 
 retPartTemplate_void = string.Template("""return $funcCallCode""")
-retPartTemplate_nonvoid = string.Template("""var $retValName = $funcCallCode
+retPartTemplate_nonVoid = string.Template("""var $retValName = $funcCallCode
         console.log(funcName + " => $retValName=" + $retValName)
         return $retValName""")
+retPartTemplate_ctor = string.Template("""$funcCallCode
+        var $retValName = this
+        console.log(funcName + " => $retValName=" + $retValName)
+        return""")
 
 hookCurFuncTemplate = string.Template("""
     $funcDefSrcHookCode
@@ -445,15 +449,16 @@ def genDisplayFunctionName(isCtor, className, funcName, isFuncOverload, overload
   return displayFuncName
 
 def genReturnPartCode(retType, funcCallCode, isCtor, className, funcNameVar, isFuncOverload, overloadFuncNameSuffix, displayFuncName):
-  global retPartTemplate_void, retPartTemplate_nonvoid
-
+  global retPartTemplate_void, retPartTemplate_nonVoid, retPartTemplate_ctor
   if retType == "void":
     retPartCode = retPartTemplate_void.safe_substitute(funcCallCode=funcCallCode)
   else:
     retValName = genRetValueName(isCtor, className, retType, funcNameVar, isFuncOverload, overloadFuncNameSuffix)
-
-    retPartCode = retPartTemplate_nonvoid.safe_substitute(retValName=retValName, funcCallCode=funcCallCode)
-
+    if isCtor:
+      # ctor() function no return value, but self is the return value
+      retPartCode = retPartTemplate_ctor.safe_substitute(funcCallCode=funcCallCode, retValName=retValName)
+    else:
+      retPartCode = retPartTemplate_nonVoid.safe_substitute(retValName=retValName, funcCallCode=funcCallCode)
   print("retPartCode=%s" % retPartCode)
   return retPartCode
 
