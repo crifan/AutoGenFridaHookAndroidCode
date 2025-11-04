@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20250529
+# Update: 20251104
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -104,7 +104,9 @@ $allClassHookCode
 overrideP = r"((?P<overrideStr>\@Override)[ \t]+)?"
 
 # protected final boolean s(String s, byte[] arr_b, String s1, String s2) {
-funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
+# funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
+# public /* synthetic */ String A00() {
+funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|(/\*\s+synthetic\s+\*/))\s+)*)"
 
 retTypeP = r"((?P<retType>[\w\.\[\]\<\>\, ]+)\s+)?"
 funcNameP = r"(?P<funcName>[\w\$]+)"
