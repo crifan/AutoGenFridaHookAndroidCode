@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251104
+# Update: 20251107
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -115,7 +115,14 @@ throwsP = r"(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?"
 
 # tailP = r"( \{)?"
 #     INITIATOR_CATEGORY_UNSPECIFIED(0),
-tailP = r"( \{)?$"
+# tailP = r"( \{)?$"
+
+#     private File A00() { // getPersistedInstallationFile
+# tailCommentP = r"(\s*//.+)?"
+tailCommentP = r"(\s*//.+?)?"
+tailBracketP = r"(\s*\{)?"
+tailP = tailBracketP + tailCommentP + r"$"
+
 # gFuncDefPattern = overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP
 gFuncDefPattern = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP + r")"
 
