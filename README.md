@@ -1,6 +1,6 @@
 # AutoGenFridaHookAndroidCode
 
-* Update: `20250319`
+* Update: `20251112`
 
 ## Repo
 
@@ -38,7 +38,8 @@ look like:
 ```json
 {
   "config": {
-    "displayFuncNameWithParas": false
+    "displayFuncNameWithParas": false,
+    "isGenPrintClassDetail": true
   },
   "toHook": {
     "fromFile": [
@@ -69,7 +70,8 @@ this type is useful when you no (jadx/JEB decompiled) java source file, such as 
 ```json
 {
   "config": {
-    "displayFuncNameWithParas": false
+    "displayFuncNameWithParas": false,
+    "isGenPrintClassDetail": true
   },
   "toHook": {
     "fromFile": [],
@@ -117,6 +119,7 @@ will generate Frida hook Android js code into:
 
 ## TODO
 
+* [x] add printClass_xxx support
 * [ ] add frida define auto fill-in
 * [ ] print to logging
 
