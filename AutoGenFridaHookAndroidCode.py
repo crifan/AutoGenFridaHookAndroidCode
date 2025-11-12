@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251107
+# Update: 20251112
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -17,6 +17,9 @@ from datetime import datetime
 # displayFuncNameWithParas = True
 displayFuncNameWithParas = False
 
+# isGenPrintClassDetail = True
+isGenPrintClassDetail = False
+
 inputJsonFile = "input/settings.json"
 
 outputFilename = "fridaHookAndroid"
@@ -32,6 +35,41 @@ mainDelimeterStr = mainDelimeterChar*mainDelimeterNum
 subDelimeterNum = 30
 subDelimeterChar = "-"
 subDelimeterStr = subDelimeterChar*subDelimeterNum
+
+#-------------------- Global Template --------------------
+
+hookPropIndent = "          "
+
+hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent + "$curSepStr$propName=" + curObj.$propertyHookName.value""")
+
+hookPrintClassDetailTemplate = string.Template("""  static printClass_$className(inputObj, prefixStr=""){
+    const ClassName = "$className"
+    const FuncName = "printClass_" + ClassName
+    const NewPrefStr = prefixStr ? (prefixStr + " ") : prefixStr
+    const PrefAndClsName = `${FuncName}: ${NewPrefStr}${ClassName}`
+    if (inputObj) {
+      var curClassName = FridaAndroidUtil.getJavaClassName(inputObj)
+      // console.log(`{PrefAndClsName}: curClassName=${curClassName}`)
+      if (curClassName === ClassName) {
+        var curObj = FridaAndroidUtil.castToJavaClass(inputObj, ClassName)
+        var clsNameStr = FridaAndroidUtil.genClassNameStr(curObj)
+
+        // $classSourceFilePath
+        /*
+        $classDefineStr
+$propertyDefineListStr
+        */
+
+        console.log(PrefAndClsName + ":" + clsNameStr
+$printPropertyValueListStr
+        )
+      } else {
+        console.log(`${PrefAndClsName}: not a ${ClassName}`)
+      }
+    } else {
+      console.log(`${PrefAndClsName}: null`)
+    }
+  }""")
 
 # hookClassTemplate = string.Template("""var clsName_$classNameVar = "$classPackage.$className"
 hookClassTemplate = string.Template("""var clsName_$classNameVar = "$clsPkgName"
@@ -76,9 +114,12 @@ hookClassFuncTemplate = string.Template("""
 
 allClassHookTemplate = string.Template("""
 class HookAppJava {
+$allPrintClassHookCode
 $allClassHookCode
 }""")
 
+#-------------------- Global Pattern --------------------
+gFunctionPropertyIndentP = r"^    "
 
 # public PersistedInstallationEntry withRegisteredFid(String str, String str2, long j, String str3, long j2) {
 # private PersistedInstallationEntry getPrefsWithGeneratedIdMultiProcessSafe() {
@@ -106,7 +147,9 @@ overrideP = r"((?P<overrideStr>\@Override)[ \t]+)?"
 # protected final boolean s(String s, byte[] arr_b, String s1, String s2) {
 # funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
 # public /* synthetic */ String A00() {
-funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|(/\*\s+synthetic\s+\*/))\s+)*)"
+# funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|(/\*\s+synthetic\s+\*/))\s+)*)"
+syntheticCommentP = r"(?P<syntheticComment>/\*\s+synthetic\s+\*/)"
+funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|" + syntheticCommentP + r")\s+)*)"
 
 retTypeP = r"((?P<retType>[\w\.\[\]\<\>\, ]+)\s+)?"
 funcNameP = r"(?P<funcName>[\w\$]+)"
@@ -211,7 +254,8 @@ def genClassHookCode(classConfigDict, className, classNameVar, classPackage):
       clsPkgName = "%s.%s" % (classPackage, className)
     else:
       clsPkgName = className
-    hookClassStr = hookClassTemplate.safe_substitute(className=className, classNameVar=classNameVar, clsPkgName=clsPkgName)
+    # hookClassStr = hookClassTemplate.safe_substitute(className=className, classNameVar=classNameVar, clsPkgName=clsPkgName)
+    hookClassStr = hookClassTemplate.safe_substitute(classNameVar=classNameVar, clsPkgName=clsPkgName)
   else:
     hookClassStr = ""
   print("hookClassStr=%s" % hookClassStr)
@@ -471,6 +515,87 @@ def genReturnPartCode(retType, funcCallCode, isCtor, className, funcNameVar, isF
   print("retPartCode=%s" % retPartCode)
   return retPartCode
 
+def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
+  global hookPropIndent, hookPrintPropertyValueTemplate, hookPrintClassDetailTemplate
+
+  classSourceFilePath = toHookClassDict.get("filePath", "")
+  print("classSourceFilePath=%s" % classSourceFilePath)
+  classConfigDict = toHookClassDict["class"]
+  print("classConfigDict=%s" % classConfigDict)
+  functionsConfigDictList = toHookClassDict["functions"]
+  print("functionsConfigDictList=%s" % functionsConfigDictList)
+  propertiesConfigDictList = toHookClassDict["properties"]
+  print("propertiesConfigDictList=%s" % propertiesConfigDictList)
+
+  className = classConfigDict["name"]
+  print("className=%s" % className)
+  classDefineStr = classConfigDict.get("defineStr", "")
+  print("classDefineStr=%s" % classDefineStr)
+
+  print("%s [%s] printClass_%s %s" % (mainDelimeterStr, curIdx, className, mainDelimeterStr))
+
+  funcNameSet = set()
+  for funcIdx, toHookFuncDict in enumerate(functionsConfigDictList):
+    funcDefSrc = toHookFuncDict["defineSource"]
+    # print("funcDefSrc=%s" % funcDefSrc)
+    defineSourceDict = parseFunctionDefineSource(funcIdx, funcDefSrc)
+    # print("defineSourceDict=%s" % defineSourceDict)
+    funcName = defineSourceDict["funcName"]
+    # print("funcName=%s" % funcName)
+    funcNameSet.add(funcName)
+  print("funcNameSet=%s" % funcNameSet)
+
+  printPropertyNameList = []
+  propertyDefineLineStrList = []
+  for propIdx, toHookPropDict in enumerate(propertiesConfigDictList):
+    propertyDefineLineStr = toHookPropDict["propDefineWholeLineStr"]
+    print("  [%d] propDefineWholeLineStr=%s" % (propIdx, propertyDefineLineStr))
+    propertyDefineLineStr = hookPropIndent + propertyDefineLineStr
+    propertyDefineLineStrList.append(propertyDefineLineStr)
+    propName = toHookPropDict["propName"]
+    print("propName=%s" % propName)
+    printPropertyNameList.append(propName)
+
+  propertyDefineListStr = "\n".join(propertyDefineLineStrList)
+  print("propertyDefineListStr=%s" % propertyDefineListStr)
+
+  proppertyHookValueStrList = []
+  for propIdx, propName in enumerate(printPropertyNameList):
+    if propIdx == 0:
+      curSepStr = " "
+    else:
+      curSepStr = ", "
+    propertyHookName = propName
+
+    isFuncDupName = propName in funcNameSet
+    print("isFuncDupName=%s" % isFuncDupName)
+    if isFuncDupName:
+      propertyHookName = "_%s" % propName
+    print("propertyHookName=%s" % propertyHookName)
+    # printPropertyValueStr = '          + "%s %s=" + curObj.%s.value' % (curSepStr, propName, propertyHookName)
+    printPropertyValueStr = hookPrintPropertyValueTemplate.safe_substitute(
+      hookPropIndent=hookPropIndent,
+      curSepStr=curSepStr,
+      propName=propName,
+      propertyHookName=propertyHookName
+    )
+    print("printPropertyValueStr=%s" % printPropertyValueStr)
+    proppertyHookValueStrList.append(printPropertyValueStr)
+  print("proppertyHookValueStrList=%s" % proppertyHookValueStrList)
+
+  printPropertyValueListStr = "\n".join(proppertyHookValueStrList)
+  print("printPropertyValueListStr=%s" % printPropertyValueListStr)
+
+  printClassDetailCode = hookPrintClassDetailTemplate.safe_substitute(
+    className=className,
+    classSourceFilePath=classSourceFilePath,
+    classDefineStr=classDefineStr,
+    propertyDefineListStr=propertyDefineListStr,
+    printPropertyValueListStr=printPropertyValueListStr
+  )
+  print("printClassDetailCode=%s" % printClassDetailCode)
+  return printClassDetailCode
+
 def genHookCodeForSingleClass(curIdx, toHookClassDict):
   classConfigDict = toHookClassDict["class"]
   print("classConfigDict=%s" % classConfigDict)
@@ -686,7 +811,7 @@ def parseClassName(javaSrcStr):
 def parseFunctionsList(javaSrcStr):
   global gFuncDefPattern
 
-  functionsDictList = []
+  functionDictList = []
 
   #     public final int a(bxmk bxmk0) {
   #     static void d(ehsd ehsd0, ehse ehse0, String s) {
@@ -695,10 +820,8 @@ def parseFunctionsList(javaSrcStr):
   #     public final void fO() {
   #     public final long A() {
 
-  functionIndentP = r"^    "
-
   functionBodyP = r".+?"
-  functionEndP = functionIndentP + r"\}$"
+  functionEndP = gFunctionPropertyIndentP + r"\}$"
 
   # functionPrefixP = r"(?P<functionPrefix>([\w\.]+\s+)+)"
   # funcNameP = r"(?P<funcName>[\w\$\.]+)"
@@ -706,9 +829,9 @@ def parseFunctionsList(javaSrcStr):
   # functionParasP = r"(?P<functionParas>\([^\)]*\))"
   # functionSuffixP = r"\s+\{"
   # functionDefineP = r"(?P<functionDefine>" + functionPrefixP + funcNameP + functionParasP + functionSuffixP + r")"
-  # functionPattern = functionIndentP + functionDefineP + functionBodyP + functionEndP
+  # functionPattern = gFunctionPropertyIndentP + functionDefineP + functionBodyP + functionEndP
 
-  functionPattern = functionIndentP + gFuncDefPattern + functionBodyP + functionEndP
+  functionPattern = gFunctionPropertyIndentP + gFuncDefPattern + functionBodyP + functionEndP
 
   functionIter = re.finditer(functionPattern, javaSrcStr, re.MULTILINE | re.DOTALL)
   print("functionIter=%s" % functionIter)
@@ -772,9 +895,139 @@ def parseFunctionsList(javaSrcStr):
 
     overloadFunctionsDictList.append(curOverloadFunctionsDict)
 
-  functionsDictList = overloadFunctionsDictList
-  print("functionsDictList=%s" % functionsDictList)
-  return functionsDictList
+  functionDictList = overloadFunctionsDictList
+  print("functionDictList=%s" % functionDictList)
+  return functionDictList
+
+def parsePropertiesList(javaSrcStr):
+  global syntheticCommentP
+
+  propertyDictList = []
+
+  """
+  Normal:
+
+    public final class bkyf extends bpjl implements bpkv {
+      public static final bkyf a;
+      private static volatile bpla f;
+      public int b;
+      public int c;
+      public int d;
+      public int e;
+
+  With tail comments:
+
+    public final /* synthetic */ class umm implements bgjz {
+      public final /* synthetic */ long a; // cloudProjectNumber
+      public final /* synthetic */ int b;
+      public final /* synthetic */ Object c; // packageName
+      public final /* synthetic */ Object d; // accountName
+      public final /* synthetic */ Object e; // callerKeyMd5
+      public final /* synthetic */ Object f;
+      public final /* synthetic */ Object g; // deviceIntegrityResponse
+      private final /* synthetic */ int h;
+
+  With Default Value:
+
+    public abstract class mit implements Comparable {
+      public final int a;
+      public final String b;
+      public final int c;
+      public Integer e;
+      public miy f;
+      public Object k;
+      public avxo m;
+      private miz nf;
+      public final Object d = new Object();
+      public boolean g = true;
+      private boolean ng = false;
+      private boolean nh = false;
+      public final boolean h = false;
+      public boolean i = false;
+      public mij j = null;
+      public mim l = new mim(2500, 1, 1.0f);
+
+    public abstract class bpjl extends bphn {
+      private static final int MEMOIZED_SERIALIZED_SIZE_MASK = Integer.MAX_VALUE;
+      private static final int MUTABLE_FLAG_MASK = Integer.MIN_VALUE;
+      static final int UNINITIALIZED_HASH_CODE = 0;
+      static final int UNINITIALIZED_SERIALIZED_SIZE = Integer.MAX_VALUE;
+      public static Map defaultInstanceMap = new ConcurrentHashMap();
+      public int memoizedSerializedSize = -1;
+      protected bplu unknownFields = bplu.a;
+  """
+
+  #     public String a;
+  #     private static final int b = 0;
+  
+  # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final))\s+)+)"
+  #     public final /* synthetic */ Object a;
+  # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/))\s+)+)"
+  # private static volatile bpla f;
+  # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/)|(volatile))\s+)+)"
+  propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|" + syntheticCommentP + r"|(volatile))\s+)+)"
+
+  # propTypeP = r"(?P<propType>[\w\$\[\]\<\> \?]+)"
+  # propTypeP = r"(?P<propType>[\w\$\[\]\<\>\?]+)"
+  # propTypeP = r"(?P<propType>[\w\$]+)"
+  propTypeP = r"(?P<propType>[\w\$]+ )"
+
+  propNameP = r"(?P<propName>[\w\$]+)"
+  propValueP = r"(\s*=\s*(?P<propValue>[^;]+))?"
+  # propEndP = r";"
+  # propEndP = r";$"
+  propTailCommentP = r"(?P<propTailComment>\s*//.+?)?"
+  propEndP = r";" + propTailCommentP + r"$"
+
+  # propertyPattern = gFunctionPropertyIndentP + propertyModifierP + propTypeP + propNameP + propValueP + propEndP
+  propertyPattern = gFunctionPropertyIndentP + r"(?P<propDefineWholeLineStr>" + propertyModifierP + propTypeP + propNameP + propValueP + propEndP + r")"
+  propertyIter = re.finditer(propertyPattern, javaSrcStr, re.MULTILINE)
+  print("propertyIter=%s" % propertyIter)
+  propertyMatchList = list(propertyIter)
+  print("propertyMatchList=%s, count=%d" % (propertyMatchList, len(propertyMatchList)))
+
+  for propIdx, propertyMatch in enumerate(propertyMatchList):
+    propDefineWholeLineStr = propertyMatch.group("propDefineWholeLineStr")
+    print("[%d] %s" % (propIdx, propDefineWholeLineStr))
+
+    propModifier = propertyMatch.group("propModifier")
+    propModifier = propModifier.strip()
+    print("propModifier=%s" % propModifier)
+    propType = propertyMatch.group("propType")
+    propType = propType.strip()
+    print("propType=%s" % propType)
+
+    syntheticComment = propertyMatch.group("syntheticComment")
+    print("syntheticComment=%s" % syntheticComment)
+    if syntheticComment:
+      # Note: Special process: remove syntheticComment part, for later generated code, NOT include "/* xxx */", which cause invalid code\
+      propDefineWholeLineStr = re.sub(syntheticCommentP + r"\s*", "", propDefineWholeLineStr)
+      print("Removed syntheticComment: propDefineWholeLineStr=%s" % propDefineWholeLineStr)
+
+    propName = propertyMatch.group("propName")
+    propName = propName.strip()
+    print("propName=%s" % propName)
+    propValue = propertyMatch.group("propValue")
+    if propValue:
+      propValue = propValue.strip()
+    print("propValue=%s" % propValue)
+
+    propTailCommentValue = propertyMatch.group("propTailComment")
+    print("propTailCommentValue=%s" % propTailCommentValue)
+
+    curPropertyDict = {
+      "propDefineWholeLineStr": propDefineWholeLineStr,
+      "propModifier": propModifier,
+      "propType": propType,
+      "propName": propName,
+      "propValue": propValue,
+      "propTailComment": propTailCommentValue,
+    }
+    print("[%d] curPropertyDict=%s" % (propIdx, curPropertyDict))
+    propertyDictList.append(curPropertyDict)
+
+  print("propertyDictList=%s" % propertyDictList)
+  return propertyDictList
 
 def genToHookClassConfig(hookFromFileList):
   toHookClassDictList = []
@@ -791,19 +1044,27 @@ def genToHookClassConfig(hookFromFileList):
     print("classNameDict=%s" % classNameDict)
     className = classNameDict["className"]
     print("className=%s" % className)
+    classDefineStr = classNameDict["classNameWholeStr"]
+    print("classDefineStr=%s" % classDefineStr)
 
     classInfoDict = {
       "name": className,
-      "package": classPackage
+      "package": classPackage,
+      "defineStr": classDefineStr,
     }
     print("classInfoDict=%s" % classInfoDict)
 
-    functionsDictList = parseFunctionsList(javaSrcStr)
-    print("functionsDictList=%s" % functionsDictList)
+    functionDictList = parseFunctionsList(javaSrcStr)
+    print("functionDictList=%s" % functionDictList)
+
+    propertyDictList = parsePropertiesList(javaSrcStr)
+    print("propertyDictList=%s" % propertyDictList)
 
     curClassConfig = {
+      "filePath": curFilePath,
       "class": classInfoDict,
-      "functions": functionsDictList
+      "functions": functionDictList,
+      "properties": propertyDictList
     }
 
     print("[%s] file=%s -> class config: %s" % (curIdx, curFilePath, curClassConfig))
@@ -843,6 +1104,10 @@ if "displayFuncNameWithParas" in configDict:
   displayFuncNameWithParas = configDict["displayFuncNameWithParas"]
 print("displayFuncNameWithParas=%s" % displayFuncNameWithParas)
 
+if "isGenPrintClassDetail" in configDict:
+  isGenPrintClassDetail = configDict["isGenPrintClassDetail"]
+print("isGenPrintClassDetail=%s" % isGenPrintClassDetail)
+
 if hookFromFileList:
   toHookDictList = genToHookClassConfig(hookFromFileList)
 
@@ -857,14 +1122,27 @@ else:
 print("toHookDictList=%s" % toHookDictList)
 
 allClassCodeList = []
+allPrintClassDetailCodeList = []
 for curIdx, toHookClassDict in enumerate(toHookDictList):
   classFuncStr = genHookCodeForSingleClass(curIdx, toHookClassDict)
   allClassCodeList.append(classFuncStr)
+  if isGenPrintClassDetail:
+    printClassDetailCode = genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict)
+    allPrintClassDetailCodeList.append(printClassDetailCode)
+
+allPrintClassHookCode = ""
+if isGenPrintClassDetail:
+  # printClassSeperator = "\n"
+  printClassSeperator = "\n\n"
+  allPrintClassHookCode = printClassSeperator.join(allPrintClassDetailCodeList)
+  print("allPrintClassHookCode=%s" % allPrintClassHookCode)
+
+  allPrintClassHookCode = "\n" + allPrintClassHookCode + "\n"
 
 allClassHookCode = "\n".join(allClassCodeList)
 print("allClassHookCode=%s" % allClassHookCode)
 
-finalOutputCode = allClassHookTemplate.safe_substitute(allClassHookCode=allClassHookCode)
+finalOutputCode = allClassHookTemplate.safe_substitute(allPrintClassHookCode=allPrintClassHookCode, allClassHookCode=allClassHookCode)
 print("finalOutputCode=%s" % finalOutputCode)
 
 saveTextToFile(outputFileFullPath, finalOutputCode)

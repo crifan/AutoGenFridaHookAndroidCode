@@ -1,6 +1,7 @@
 {
   "config": {
-    "displayFuncNameWithParas": false
+    "displayFuncNameWithParas": false,
+    "isGenPrintClassDetail": true
   },
   "toHook": {
     "fromFile": [
