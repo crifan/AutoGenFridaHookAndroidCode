@@ -111,7 +111,7 @@ hookClassFuncTemplate = string.Template("""
   static $classNameVar() {
     $hookClassStr
 
-    // curLogFunc = FridaAndroidUtil.printFunctionCallAndStack
+    //var curLogFunc = FridaAndroidUtil.printFunctionCallAndStack
     var curLogFunc = FridaAndroidUtil.printFunctionCallStr
 
     $hookAllFuncStr
