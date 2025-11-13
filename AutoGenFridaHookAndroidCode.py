@@ -101,7 +101,7 @@ hookCurFuncTemplate = string.Template("""
       $hookFuncName.implementation = function ($parasStr) {
         var funcName = "$displayFuncName"
         var funcParaDict = {$paraDictStr}
-        FridaAndroidUtil.printFunctionCallAndStack(funcName, funcParaDict)
+        curLogFunc(funcName, funcParaDict)
 
         $retPartCode
       }
@@ -110,6 +110,9 @@ hookCurFuncTemplate = string.Template("""
 hookClassFuncTemplate = string.Template("""
   static $classNameVar() {
     $hookClassStr
+
+    // curLogFunc = FridaAndroidUtil.printFunctionCallAndStack
+    var curLogFunc = FridaAndroidUtil.printFunctionCallStr
 
     $hookAllFuncStr
   }
@@ -154,8 +157,10 @@ overrideP = r"((?P<overrideStr>\@Override)[ \t]+)?"
 # funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract))\s+)*)"
 # public /* synthetic */ String A00() {
 # funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|(/\*\s+synthetic\s+\*/))\s+)*)"
-syntheticCommentP = r"(?P<syntheticComment>/\*\s+synthetic\s+\*/)"
-funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|" + syntheticCommentP + r")\s+)*)"
+# funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|" + syntheticCommentP + r")\s+)*)"
+syntheticCommentP = r"(?P<syntheticComment>/\*\s*synthetic\s*\*/)"
+bridgeCommentP = r"(?P<bridgeComment>/\*\s*bridge\s*\*/)"
+funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|" + syntheticCommentP + r"|" + bridgeCommentP + r")\s+)*)"
 
 retTypeP = r"((?P<retType>[\w\.\[\]\<\>\, ]+)\s+)?"
 funcNameP = r"(?P<funcName>[\w\$]+)"
@@ -1166,7 +1171,7 @@ for eachClassName in classNameList:
   hookAppJavaNameStr = "%s%s.%s()" % ("  ", hookAppJavaName, eachClassName)
   hookAppJavaNameList.append(hookAppJavaNameStr)
 allHookAppJavaCode = "\n".join(hookAppJavaNameList)
-allHookAppJavaCode = "\n" + allHookAppJavaCode + "\n"
+allHookAppJavaCode = "\n/*\n" + allHookAppJavaCode + "\n*/\n"
 
 finalOutputCode = allClassHookTemplate.safe_substitute(allPrintClassHookCode=allPrintClassHookCode, allClassHookCode=allClassHookCode, allHookAppJavaCode=allHookAppJavaCode)
 print("finalOutputCode=%s" % finalOutputCode)
