@@ -1,7 +1,8 @@
 {
   "config": {
     "displayFuncNameWithParas": false,
-    "isGenPrintClassDetail": true
+    "isGenPrintClassDetail": true,
+    "hookAppJavaName": "HookAppJava_AppName"
   },
   "toHook": {
     "fromFile": [

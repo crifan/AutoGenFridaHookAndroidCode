@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251112
+# Update: 20251113
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -19,6 +19,8 @@ displayFuncNameWithParas = False
 
 # isGenPrintClassDetail = True
 isGenPrintClassDetail = False
+
+hookAppJavaName = "hookAppJava_xxx"
 
 inputJsonFile = "input/settings.json"
 
@@ -49,7 +51,7 @@ hookPrintClassDetailTemplate = string.Template("""  static printClass_$className
     const PrefAndClsName = `${FuncName}: ${NewPrefStr}${ClassName}`
     if (inputObj) {
       var curClassName = FridaAndroidUtil.getJavaClassName(inputObj)
-      // console.log(`{PrefAndClsName}: curClassName=${curClassName}`)
+      // console.log(`${PrefAndClsName}: curClassName=${curClassName}`)
       if (curClassName === ClassName) {
         var curObj = FridaAndroidUtil.castToJavaClass(inputObj, ClassName)
         var clsNameStr = FridaAndroidUtil.genClassNameStr(curObj)
@@ -64,7 +66,8 @@ $propertyDefineListStr
 $printPropertyValueListStr
         )
       } else {
-        console.log(`${PrefAndClsName}: not a ${ClassName}`)
+        var valNameStr = FridaAndroidUtil.valueToNameStr(inputObj)
+        console.log(`${PrefAndClsName}: ${valNameStr} not a ${ClassName}`)
       }
     } else {
       console.log(`${PrefAndClsName}: null`)
@@ -116,10 +119,13 @@ allClassHookTemplate = string.Template("""
 class HookAppJava {
 $allPrintClassHookCode
 $allClassHookCode
+$allHookAppJavaCode
 }""")
 
 #-------------------- Global Pattern --------------------
 gFunctionPropertyIndentP = r"^    "
+
+#---------- Class Function Pattern ----------
 
 # public PersistedInstallationEntry withRegisteredFid(String str, String str2, long j, String str3, long j2) {
 # private PersistedInstallationEntry getPrefsWithGeneratedIdMultiProcessSafe() {
@@ -169,6 +175,88 @@ tailP = tailBracketP + tailCommentP + r"$"
 # gFuncDefPattern = overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP
 gFuncDefPattern = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP + r")"
 
+#---------- Class Property Pattern ----------
+
+"""
+Normal:
+
+  public final class bkyf extends bpjl implements bpkv {
+    public static final bkyf a;
+    private static volatile bpla f;
+    public int b;
+    public int c;
+    public int d;
+    public int e;
+
+With tail comments:
+
+  public final /* synthetic */ class umm implements bgjz {
+    public final /* synthetic */ long a; // cloudProjectNumber
+    public final /* synthetic */ int b;
+    public final /* synthetic */ Object c; // packageName
+    public final /* synthetic */ Object d; // accountName
+    public final /* synthetic */ Object e; // callerKeyMd5
+    public final /* synthetic */ Object f;
+    public final /* synthetic */ Object g; // deviceIntegrityResponse
+    private final /* synthetic */ int h;
+
+With Default Value:
+
+  public abstract class mit implements Comparable {
+    public final int a;
+    public final String b;
+    public final int c;
+    public Integer e;
+    public miy f;
+    public Object k;
+    public avxo m;
+    private miz nf;
+    public final Object d = new Object();
+    public boolean g = true;
+    private boolean ng = false;
+    private boolean nh = false;
+    public final boolean h = false;
+    public boolean i = false;
+    public mij j = null;
+    public mim l = new mim(2500, 1, 1.0f);
+
+  public abstract class bpjl extends bphn {
+    private static final int MEMOIZED_SERIALIZED_SIZE_MASK = Integer.MAX_VALUE;
+    private static final int MUTABLE_FLAG_MASK = Integer.MIN_VALUE;
+    static final int UNINITIALIZED_HASH_CODE = 0;
+    static final int UNINITIALIZED_SERIALIZED_SIZE = Integer.MAX_VALUE;
+    public static Map defaultInstanceMap = new ConcurrentHashMap();
+    public int memoizedSerializedSize = -1;
+    protected bplu unknownFields = bplu.a;
+"""
+
+#     public String a;
+#     private static final int b = 0;
+
+# propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final))\s+)+)"
+#     public final /* synthetic */ Object a;
+# propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/))\s+)+)"
+# private static volatile bpla f;
+# propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/)|(volatile))\s+)+)"
+propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|" + syntheticCommentP + r"|(volatile))\s+)+)"
+
+# propTypeP = r"(?P<propType>[\w\$\[\]\<\> \?]+)"
+# propTypeP = r"(?P<propType>[\w\$\[\]\<\>\?]+)"
+# propTypeP = r"(?P<propType>[\w\$]+)"
+# propTypeP = r"(?P<propType>[\w\$]+ )"
+
+# public Object[] b;
+propTypeP = r"(?P<propType>[\w\$\[\]\<\>\?]+ )"
+
+propNameP = r"(?P<propName>[\w\$]+)"
+propValueP = r"(\s*=\s*(?P<propValue>[^;]+))?"
+# propEndP = r";"
+# propEndP = r";$"
+propTailCommentP = r"(?P<propTailComment>\s*//.+?)?"
+propEndP = r";" + propTailCommentP + r"$"
+
+# propertyPattern = gFunctionPropertyIndentP + propertyModifierP + propTypeP + propNameP + propValueP + propEndP
+propertyPattern = gFunctionPropertyIndentP + r"(?P<propDefineWholeLineStr>" + propertyModifierP + propTypeP + propNameP + propValueP + propEndP + r")"
 
 ################################################################################
 # Util Functions
@@ -900,92 +988,14 @@ def parseFunctionsList(javaSrcStr):
   return functionDictList
 
 def parsePropertiesList(javaSrcStr):
-  global syntheticCommentP
+  global propertyPattern
 
-  propertyDictList = []
-
-  """
-  Normal:
-
-    public final class bkyf extends bpjl implements bpkv {
-      public static final bkyf a;
-      private static volatile bpla f;
-      public int b;
-      public int c;
-      public int d;
-      public int e;
-
-  With tail comments:
-
-    public final /* synthetic */ class umm implements bgjz {
-      public final /* synthetic */ long a; // cloudProjectNumber
-      public final /* synthetic */ int b;
-      public final /* synthetic */ Object c; // packageName
-      public final /* synthetic */ Object d; // accountName
-      public final /* synthetic */ Object e; // callerKeyMd5
-      public final /* synthetic */ Object f;
-      public final /* synthetic */ Object g; // deviceIntegrityResponse
-      private final /* synthetic */ int h;
-
-  With Default Value:
-
-    public abstract class mit implements Comparable {
-      public final int a;
-      public final String b;
-      public final int c;
-      public Integer e;
-      public miy f;
-      public Object k;
-      public avxo m;
-      private miz nf;
-      public final Object d = new Object();
-      public boolean g = true;
-      private boolean ng = false;
-      private boolean nh = false;
-      public final boolean h = false;
-      public boolean i = false;
-      public mij j = null;
-      public mim l = new mim(2500, 1, 1.0f);
-
-    public abstract class bpjl extends bphn {
-      private static final int MEMOIZED_SERIALIZED_SIZE_MASK = Integer.MAX_VALUE;
-      private static final int MUTABLE_FLAG_MASK = Integer.MIN_VALUE;
-      static final int UNINITIALIZED_HASH_CODE = 0;
-      static final int UNINITIALIZED_SERIALIZED_SIZE = Integer.MAX_VALUE;
-      public static Map defaultInstanceMap = new ConcurrentHashMap();
-      public int memoizedSerializedSize = -1;
-      protected bplu unknownFields = bplu.a;
-  """
-
-  #     public String a;
-  #     private static final int b = 0;
-  
-  # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final))\s+)+)"
-  #     public final /* synthetic */ Object a;
-  # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/))\s+)+)"
-  # private static volatile bpla f;
-  # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/)|(volatile))\s+)+)"
-  propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|" + syntheticCommentP + r"|(volatile))\s+)+)"
-
-  # propTypeP = r"(?P<propType>[\w\$\[\]\<\> \?]+)"
-  # propTypeP = r"(?P<propType>[\w\$\[\]\<\>\?]+)"
-  # propTypeP = r"(?P<propType>[\w\$]+)"
-  propTypeP = r"(?P<propType>[\w\$]+ )"
-
-  propNameP = r"(?P<propName>[\w\$]+)"
-  propValueP = r"(\s*=\s*(?P<propValue>[^;]+))?"
-  # propEndP = r";"
-  # propEndP = r";$"
-  propTailCommentP = r"(?P<propTailComment>\s*//.+?)?"
-  propEndP = r";" + propTailCommentP + r"$"
-
-  # propertyPattern = gFunctionPropertyIndentP + propertyModifierP + propTypeP + propNameP + propValueP + propEndP
-  propertyPattern = gFunctionPropertyIndentP + r"(?P<propDefineWholeLineStr>" + propertyModifierP + propTypeP + propNameP + propValueP + propEndP + r")"
   propertyIter = re.finditer(propertyPattern, javaSrcStr, re.MULTILINE)
   print("propertyIter=%s" % propertyIter)
   propertyMatchList = list(propertyIter)
   print("propertyMatchList=%s, count=%d" % (propertyMatchList, len(propertyMatchList)))
 
+  propertyDictList = []
   for propIdx, propertyMatch in enumerate(propertyMatchList):
     propDefineWholeLineStr = propertyMatch.group("propDefineWholeLineStr")
     print("[%d] %s" % (propIdx, propDefineWholeLineStr))
@@ -1108,6 +1118,10 @@ if "isGenPrintClassDetail" in configDict:
   isGenPrintClassDetail = configDict["isGenPrintClassDetail"]
 print("isGenPrintClassDetail=%s" % isGenPrintClassDetail)
 
+if "hookAppJavaName" in configDict:
+  hookAppJavaName = configDict["hookAppJavaName"]
+print("hookAppJavaName=%s" % hookAppJavaName)
+
 if hookFromFileList:
   toHookDictList = genToHookClassConfig(hookFromFileList)
 
@@ -1123,7 +1137,12 @@ print("toHookDictList=%s" % toHookDictList)
 
 allClassCodeList = []
 allPrintClassDetailCodeList = []
+
+classNameList = []
 for curIdx, toHookClassDict in enumerate(toHookDictList):
+  className = toHookClassDict["class"]["name"]
+  classNameList.append(className)
+
   classFuncStr = genHookCodeForSingleClass(curIdx, toHookClassDict)
   allClassCodeList.append(classFuncStr)
   if isGenPrintClassDetail:
@@ -1142,7 +1161,14 @@ if isGenPrintClassDetail:
 allClassHookCode = "\n".join(allClassCodeList)
 print("allClassHookCode=%s" % allClassHookCode)
 
-finalOutputCode = allClassHookTemplate.safe_substitute(allPrintClassHookCode=allPrintClassHookCode, allClassHookCode=allClassHookCode)
+hookAppJavaNameList = []
+for eachClassName in classNameList:
+  hookAppJavaNameStr = "%s%s.%s()" % ("  ", hookAppJavaName, eachClassName)
+  hookAppJavaNameList.append(hookAppJavaNameStr)
+allHookAppJavaCode = "\n".join(hookAppJavaNameList)
+allHookAppJavaCode = "\n" + allHookAppJavaCode + "\n"
+
+finalOutputCode = allClassHookTemplate.safe_substitute(allPrintClassHookCode=allPrintClassHookCode, allClassHookCode=allClassHookCode, allHookAppJavaCode=allHookAppJavaCode)
 print("finalOutputCode=%s" % finalOutputCode)
 
 saveTextToFile(outputFileFullPath, finalOutputCode)
