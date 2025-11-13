@@ -527,51 +527,83 @@ def genRetValueName(isCtor, className, retType, funcNameVar, isFuncOverload, ove
   print("isCtor=%s, className=%s, retType=%s, funcNameVar=%s -> retValName=%s" % (isCtor, className, retType, funcNameVar, retValName))
   return retValName
 
-def genToFindFuncionName(toCallFuncName, isFuncOverload, funcDefFrida):
+
+def genOverloadParasFromFridaDefintion(funcDefFrida):
+  # // public static int getInt(ContentResolver cr, String name)
+  # // public static int android.provider.Settings$Secure.getInt(android.content.ContentResolver,java.lang.String) throws android.provider.Settings$SettingNotFoundException
+  # // static int	getInt(ContentResolver cr, String name, int def)
+  # // public static int android.provider.Settings$Secure.getInt(android.content.ContentResolver,java.lang.String,int)
+
+  # public void java.net.HttpURLConnection.setFixedLengthStreamingMode(int)
+  # public void java.net.HttpURLConnection.setFixedLengthStreamingMode(long)
+
+  overloadParas = ""
+
+  paraTypesStrPattern = r"\((?P<paraTypesStr>[\w\.,]+)?\)"
+  print("paraTypesStrPattern=%s" % paraTypesStrPattern)
+
+  paraTypesStrMatch = re.search(paraTypesStrPattern, funcDefFrida)
+  print("paraTypesStrMatch=%s" % paraTypesStrMatch)
+
+  if not paraTypesStrMatch:
+    return overloadParas
+
+  paraTypesStr = paraTypesStrMatch.group("paraTypesStr")
+  print("paraTypesStr=%s" % paraTypesStr)
+  if not paraTypesStr:
+    return overloadParas
+
+  paraTypeListStrPattern = r"(?P<paraType>[\w\.]+),?"
+  print("paraTypeListStrPattern=%s" % paraTypeListStrPattern)
+  paraTypeListStrIter = re.finditer(paraTypeListStrPattern, paraTypesStr)
+  print("paraTypeListStrIter=%s" % paraTypeListStrIter)
+  paraTypeListStrMatchList = list(paraTypeListStrIter)
+  print("paraTypeListStrMatchList=%s" % paraTypeListStrMatchList)
+  if not paraTypeListStrMatchList:
+    return overloadParas
+
+  paraTypeList = []
+  for earchParaTypeMatch in paraTypeListStrMatchList:
+    earchParaType = earchParaTypeMatch.group("paraType")
+    print("earchParaType=%s" % earchParaType)
+    paraTypeList.append(earchParaType)
+  
+  overloadParaTypeStrList = []
+  for earchParaType in paraTypeList:
+    overloadParaTypeStr = '"%s"' % earchParaType
+    print("overloadParaTypeStr=%s" % overloadParaTypeStr)
+    overloadParaTypeStrList.append(overloadParaTypeStr)
+
+  overloadParas = ", ".join(overloadParaTypeStrList)
+
+  return overloadParas
+
+def genOverloadFuncNameSuffix(paraNameList):
+  funcParaNum = len(paraNameList)
+  print("funcParaNum=%s" % funcParaNum)
+  paraNameFirstChars = ""
+  for eachParaName in paraNameList:
+    curParaNameFirstChar = eachParaName[0]
+    paraNameFirstChars += curParaNameFirstChar
+  print("paraNameFirstChars=%s" % paraNameFirstChars)
+  overloadFuncNameSuffix = "%sp%s" % (funcParaNum, paraNameFirstChars)
+  return overloadFuncNameSuffix
+
+def genToFindFuncionName(toCallFuncName, isFuncOverload, funcDefFrida, paraTypeList):
   if isFuncOverload:
     overloadParas = ""
 
-    # // public static int getInt(ContentResolver cr, String name)
-    # // public static int android.provider.Settings$Secure.getInt(android.content.ContentResolver,java.lang.String) throws android.provider.Settings$SettingNotFoundException
-    # // static int	getInt(ContentResolver cr, String name, int def)
-    # // public static int android.provider.Settings$Secure.getInt(android.content.ContentResolver,java.lang.String,int)
-
-    # public void java.net.HttpURLConnection.setFixedLengthStreamingMode(int)
-    # public void java.net.HttpURLConnection.setFixedLengthStreamingMode(long)
-
     if funcDefFrida:
-      paraTypesStrPattern = r"\((?P<paraTypesStr>[\w\.,]+)?\)"
-      print("paraTypesStrPattern=%s" % paraTypesStrPattern)
-
-      paraTypesStrMatch = re.search(paraTypesStrPattern, funcDefFrida)
-      print("paraTypesStrMatch=%s" % paraTypesStrMatch)
-
-      if paraTypesStrMatch:
-        paraTypesStr = paraTypesStrMatch.group("paraTypesStr")
-        print("paraTypesStr=%s" % paraTypesStr)
-        if paraTypesStr:
-          paraTypeListStrPattern = r"(?P<paraType>[\w\.]+),?"
-          print("paraTypeListStrPattern=%s" % paraTypeListStrPattern)
-          paraTypeListStrIter = re.finditer(paraTypeListStrPattern, paraTypesStr)
-          print("paraTypeListStrIter=%s" % paraTypeListStrIter)
-          paraTypeListStrMatchList = list(paraTypeListStrIter)
-          print("paraTypeListStrMatchList=%s" % paraTypeListStrMatchList)
-          if paraTypeListStrMatchList:
-            paraTypeList = []
-            for earchParaTypeMatch in paraTypeListStrMatchList:
-              earchParaType = earchParaTypeMatch.group("paraType")
-              print("earchParaType=%s" % earchParaType)
-              paraTypeList.append(earchParaType)
-            
-            overloadParaTypeStrList = []
-            for earchParaType in paraTypeList:
-              overloadParaTypeStr = '"%s"' % earchParaType
-              print("overloadParaTypeStr=%s" % overloadParaTypeStr)
-              overloadParaTypeStrList.append(overloadParaTypeStr)
-            
-            overloadParas = ", ".join(overloadParaTypeStrList)
+      overloadParas = genOverloadParasFromFridaDefintion(funcDefFrida)
     else:
-      print("Warning: no frida hook function definition -> can NOT generate overload function name for find !")
+      # print("Warning: no frida hook function definition -> can NOT generate overload function name for find !")
+
+      # generate overload paras from para type list
+      paraTypeStrList = []
+      for eachParaType in paraTypeList:
+        eachParaTypeStr = '"%s"' % eachParaType
+        paraTypeStrList.append(eachParaTypeStr)
+      overloadParas = ", ".join(paraTypeStrList)
 
     toFindFuncName = "%s.overload(%s)" % (toCallFuncName, overloadParas)
   else:
@@ -728,14 +760,19 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     typeParaDictList = defineSourceDict["typeParaDictList"]
 
     paraNameList = []
+    paraTypeList = []
     paraLineStrList = []
     for curTypeParaDict in typeParaDictList:
       curParaName = curTypeParaDict["paraName"]
       paraNameList.append(curParaName)
 
+      curParaType = curTypeParaDict["paraType"]
+      paraTypeList.append(curParaType)
+
       paraLineStr = '"%s": %s,' % (curParaName, curParaName)
       paraLineStrList.append(paraLineStr)
     print("paraNameList=%s" % paraNameList)
+    print("paraTypeList=%s" % paraTypeList)
     print("paraLineStrList=%s" % paraLineStrList)
 
     parasStr = ", ".join(paraNameList)
@@ -752,14 +789,7 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     print("paraDictStr=%s" % paraDictStr)
 
     if isFuncOverload:
-      funcParaNum = len(paraNameList)
-      print("funcParaNum=%s" % funcParaNum)
-      paraNameFirstChars = ""
-      for eachParaName in paraNameList:
-        curParaNameFirstChar = eachParaName[0]
-        paraNameFirstChars += curParaNameFirstChar
-      print("paraNameFirstChars=%s" % paraNameFirstChars)
-      overloadFuncNameSuffix = "%sp%s" % (funcParaNum, paraNameFirstChars)
+      overloadFuncNameSuffix = genOverloadFuncNameSuffix(paraNameList)
       print("overloadFuncNameSuffix=%s" % overloadFuncNameSuffix)
 
     isCtor = funcName == className
@@ -774,7 +804,7 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     funcCallCode = funcCallTemplate.safe_substitute(toCallFuncName=toCallFuncName, parasStr=parasStr)
     print("funcCallCode=%s" % funcCallCode)
 
-    toFindFuncName = genToFindFuncionName(toCallFuncName, isFuncOverload, funcDefFrida)
+    toFindFuncName = genToFindFuncionName(toCallFuncName, isFuncOverload, funcDefFrida, paraTypeList)
     print("toFindFuncName=%s" % toFindFuncName)
 
     displayFuncName = genDisplayFunctionName(isCtor, className, funcName, isFuncOverload, overloadFuncNameSuffix, displayFuncNameWithParas, parasStr)
