@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251113
+# Update: 20251114
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -172,13 +172,48 @@ throwsP = r"(\s+throws\s+(?P<throwsStr>((,\s+)?\w+)+))?"
 # tailP = r"( \{)?$"
 
 #     private File A00() { // getPersistedInstallationFile
-# tailCommentP = r"(\s*//.+)?"
-tailCommentP = r"(\s*//.+?)?"
-tailBracketP = r"(\s*\{)?"
-tailP = tailBracketP + tailCommentP + r"$"
+# funcDefTailCommentP = r"(\s*//.+)?"
+# funcDefTailCommentP = r"(\s*//.+?)?"
+funcDefTailCommentP = r"(\s+//.+?)?"
+# funcDefTailBracketP = r"(\s*\{)?"
+# funcDefTailBracketP = r"(\s*\{)"
+# funcDefTailBracketP = r"\s*\{"
+funcDefTailBracketP = r"\s+\{"
+# tailP = funcDefTailBracketP + funcDefTailCommentP + r"$"
+#     public abstract byte a(int i);
+funcDefTailCommaP = r";"
+# tailBracketOrCommaP = r"(" +  funcDefTailBracketP + r"|" + funcDefTailCommaP + r")"
+# tailP = tailBracketOrCommaP + funcDefTailCommentP + r"$"
+funcDefTailP_withBody = funcDefTailBracketP + funcDefTailCommentP + r"$"
+funcDefTailP_noBody = funcDefTailCommaP + funcDefTailCommentP + r"$"
 
-# gFuncDefPattern = overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP
-gFuncDefPattern = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP + r")"
+# funcDefP_common = overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP
+# funcDefP_common = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP + r")"
+funcDefP_common = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + r")"
+
+#     public final int a(bxmk bxmk0) {
+#     static void d(ehsd ehsd0, ehse ehse0, String s) {
+#     public static final void e(Context context0) {
+#     public static final void f(long v, int v1) {
+#     public final void fO() {
+#     public final long A() {
+
+functionBodyP = r".+?"
+functionEndP = gFunctionPropertyIndentP + r"\}$"
+
+# functionPrefixP = r"(?P<functionPrefix>([\w\.]+\s+)+)"
+# funcNameP = r"(?P<funcName>[\w\$\.]+)"
+# # functionParasP = r"(?P<functionParas>\([^\)]+\))"
+# functionParasP = r"(?P<functionParas>\([^\)]*\))"
+# functionSuffixP = r"\s+\{"
+# functionDefineP = r"(?P<functionDefine>" + functionPrefixP + funcNameP + functionParasP + functionSuffixP + r")"
+# wholeFuncP = gFunctionPropertyIndentP + functionDefineP + functionBodyP + functionEndP
+
+funcDefTailWithBodyEndP = r"(" + funcDefTailP_withBody + functionBodyP + functionEndP + r")"
+funcDefTailNoBodyEndP = r"(" + funcDefTailP_noBody + r")"
+
+wholeFuncP = gFunctionPropertyIndentP + funcDefP_common + r"(" + funcDefTailWithBodyEndP + r"|" + funcDefTailNoBodyEndP + r")"
+
 
 #---------- Class Property Pattern ----------
 
@@ -355,10 +390,13 @@ def genClassHookCode(classConfigDict, className, classNameVar, classPackage):
   return hookClassStr
 
 def parseFunctionDefineSource(funcIdx, funcDefSrc):
-  global gFuncDefPattern
+  global funcDefP_common
 
-  funcDefMatch = re.search(gFuncDefPattern, funcDefSrc)
+  funcDefMatch = re.search(funcDefP_common, funcDefSrc)
   if funcDefMatch:
+    funcDefP_common_Str = funcDefMatch.group(0)
+    print("funcDefP_common_Str=%s" % funcDefP_common_Str)
+
     overrideStr = funcDefMatch.group("overrideStr")
     print("overrideStr=%s" % overrideStr)
     funcModifier = funcDefMatch.group("funcModifier")
@@ -932,31 +970,11 @@ def parseClassName(javaSrcStr):
     return classNameDict
 
 def parseFunctionsList(javaSrcStr):
-  global gFuncDefPattern
+  global wholeFuncP
 
   functionDictList = []
 
-  #     public final int a(bxmk bxmk0) {
-  #     static void d(ehsd ehsd0, ehse ehse0, String s) {
-  #     public static final void e(Context context0) {
-  #     public static final void f(long v, int v1) {
-  #     public final void fO() {
-  #     public final long A() {
-
-  functionBodyP = r".+?"
-  functionEndP = gFunctionPropertyIndentP + r"\}$"
-
-  # functionPrefixP = r"(?P<functionPrefix>([\w\.]+\s+)+)"
-  # funcNameP = r"(?P<funcName>[\w\$\.]+)"
-  # # functionParasP = r"(?P<functionParas>\([^\)]+\))"
-  # functionParasP = r"(?P<functionParas>\([^\)]*\))"
-  # functionSuffixP = r"\s+\{"
-  # functionDefineP = r"(?P<functionDefine>" + functionPrefixP + funcNameP + functionParasP + functionSuffixP + r")"
-  # functionPattern = gFunctionPropertyIndentP + functionDefineP + functionBodyP + functionEndP
-
-  functionPattern = gFunctionPropertyIndentP + gFuncDefPattern + functionBodyP + functionEndP
-
-  functionIter = re.finditer(functionPattern, javaSrcStr, re.MULTILINE | re.DOTALL)
+  functionIter = re.finditer(wholeFuncP, javaSrcStr, re.MULTILINE | re.DOTALL)
   print("functionIter=%s" % functionIter)
   functionMatchList = list(functionIter)
   print("functionMatchList=%s, count=%d" % (functionMatchList, len(functionMatchList)))
