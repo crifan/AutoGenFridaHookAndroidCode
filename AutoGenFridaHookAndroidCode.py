@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251114
+# Update: 20251121
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -278,7 +278,9 @@ With Default Value:
 # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/))\s+)+)"
 # private static volatile bpla f;
 # propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|(/\*\s+synthetic\s+\*/)|(volatile))\s+)+)"
-propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|" + syntheticCommentP + r"|(volatile))\s+)+)"
+# propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|" + syntheticCommentP + r"|(volatile))\s+)+)"
+# int c;
+propertyModifierP = r"(?P<propModifier>(((public)|(private)|(protected)|(static)|(final)|" + syntheticCommentP + r"|(volatile))\s+)+)?"
 
 # propTypeP = r"(?P<propType>[\w\$\[\]\<\> \?]+)"
 # propTypeP = r"(?P<propType>[\w\$\[\]\<\>\?]+)"
@@ -1054,7 +1056,8 @@ def parsePropertiesList(javaSrcStr):
     print("[%d] %s" % (propIdx, propDefineWholeLineStr))
 
     propModifier = propertyMatch.group("propModifier")
-    propModifier = propModifier.strip()
+    if propModifier:
+      propModifier = propModifier.strip()
     print("propModifier=%s" % propModifier)
     propType = propertyMatch.group("propType")
     propType = propType.strip()
