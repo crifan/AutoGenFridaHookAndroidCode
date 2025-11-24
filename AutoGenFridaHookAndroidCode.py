@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251121
+# Update: 20251124
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -54,7 +54,7 @@ hookPrintClassDetailTemplate = string.Template("""  static printClass_$className
       // console.log(`${PrefAndClsName}: curClassName=${curClassName}`)
       if (curClassName === ClassName) {
         var curObj = FridaAndroidUtil.castToJavaClass(inputObj, ClassName)
-        var clsNameStr = FridaAndroidUtil.genClassNameStr(curObj)
+        var clsNameValStr = FridaAndroidUtil.valueToNameStr(curObj)
 
         // $classSourceFilePath
         /*
@@ -62,7 +62,7 @@ hookPrintClassDetailTemplate = string.Template("""  static printClass_$className
 $propertyDefineListStr
         */
 
-        console.log(PrefAndClsName + ":" + clsNameStr
+        console.log(PrefAndClsName + ":" + clsNameValStr
 $printPropertyValueListStr
         )
       } else {
