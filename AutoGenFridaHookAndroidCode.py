@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251124
+# Update: 20251126
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -45,33 +45,21 @@ hookPropIndent = "          "
 hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent + "$curSepStr$propName=" + curObj.$propertyHookName.value""")
 
 hookPrintClassDetailTemplate = string.Template("""  static printClass_$className(inputObj, prefixStr=""){
-    const ClassName = "$className"
-    const FuncName = "printClass_" + ClassName
-    const NewPrefStr = prefixStr ? (prefixStr + " ") : prefixStr
-    const PrefAndClsName = `${FuncName}: ${NewPrefStr}${ClassName}`
-    if (inputObj) {
-      var curClassName = FridaAndroidUtil.getJavaClassName(inputObj)
-      // console.log(`${PrefAndClsName}: curClassName=${curClassName}`)
-      if (curClassName === ClassName) {
-        var curObj = FridaAndroidUtil.castToJavaClass(inputObj, ClassName)
-        var clsNameValStr = FridaAndroidUtil.valueToNameStr(curObj)
-
-        // $classSourceFilePath
+    FridaAndroidUtil.printClassTemplate(
+      "$className",
+      inputObj,
+      function (curObj, fullPrefixStr) {
         /*
         $classDefineStr
 $propertyDefineListStr
         */
 
-        console.log(PrefAndClsName + ":" + clsNameValStr
+        console.log(fullPrefixStr
 $printPropertyValueListStr
         )
-      } else {
-        var valNameStr = FridaAndroidUtil.valueToNameStr(inputObj)
-        console.log(`${PrefAndClsName}: ${valNameStr} not a ${ClassName}`)
-      }
-    } else {
-      console.log(`${PrefAndClsName}: null`)
-    }
+      },
+      prefixStr
+    )
   }""")
 
 # hookClassTemplate = string.Template("""var clsName_$classNameVar = "$classPackage.$className"
@@ -83,7 +71,8 @@ hookClassTemplate = string.Template("""var clsName_$classNameVar = "$clsPkgName"
 
 funcCallTemplate = string.Template("this.$toCallFuncName($parasStr)")
 
-retPartTemplate_void = string.Template("""return $funcCallCode""")
+retPartTemplate_void = string.Template("""$funcCallCode
+        return""")
 retPartTemplate_nonVoid = string.Template("""var $retValName = $funcCallCode
         console.log(funcName + " => $retValName=" + $retValName)
         return $retValName""")
@@ -753,7 +742,7 @@ def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
 
   printClassDetailCode = hookPrintClassDetailTemplate.safe_substitute(
     className=className,
-    classSourceFilePath=classSourceFilePath,
+    # classSourceFilePath=classSourceFilePath,
     classDefineStr=classDefineStr,
     propertyDefineListStr=propertyDefineListStr,
     printPropertyValueListStr=printPropertyValueListStr
@@ -900,6 +889,7 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     print("hookAllFuncCodeList=%s" % hookAllFuncCodeList)
 
   hookAllFuncStr = "\n".join(hookAllFuncCodeList)
+  hookAllFuncStr += "\n"
   print("hookAllFuncStr=%s" % hookAllFuncStr)
 
   classFuncStr = hookClassFuncTemplate.safe_substitute(classNameVar=classNameVar, hookClassStr=hookClassStr, hookAllFuncStr=hookAllFuncStr)
