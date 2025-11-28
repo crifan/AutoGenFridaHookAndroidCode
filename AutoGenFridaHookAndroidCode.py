@@ -42,8 +42,8 @@ subDelimeterStr = subDelimeterChar*subDelimeterNum
 
 hookPropIndent = "          "
 
-hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent+ "$curSepStr$propName=" + curObj.$propertyHookName.value""")
-
+propValueNameTemplate = string.Template("""curObj.$propertyHookName.value""")
+hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent+ "$curSepStr$propName=" + $propValStr""")
 hookPrintClassDetailTemplate = string.Template("""  static printClass_$className(inputObj, prefixStr=""){
     FridaAndroidUtil.printClassTemplate(
       "$className",
@@ -71,14 +71,15 @@ hookClassTemplate = string.Template("""var clsName_$classNameVar = "$clsPkgName"
 
 funcCallTemplate = string.Template("this.$toCallFuncName($parasStr)")
 
+retPartCallLogTemplate = string.Template("""console.log(`${funcName} => ${$retValName}=${$retValStr}`)""")
 retPartTemplate_void = string.Template("""$funcCallCode
       return""")
 retPartTemplate_nonVoid = string.Template("""var $retValName = $funcCallCode
-      console.log(`${funcName} => ${$retValName}=${$retValName}`)
+      $retPartCallLogStr
       return $retValName""")
 retPartTemplate_ctor = string.Template("""$funcCallCode
       var $retValName = this
-      console.log(`${funcName} => ${$retValName}=${$retValName}`)
+      $retPartCallLogStr
       return""")
 
 hookCurFuncTemplate = string.Template("""
@@ -356,6 +357,30 @@ def saveTextToFile(fullFilename, text, fileEncoding="utf-8"):
 ################################################################################
 # Current Functions
 ################################################################################
+
+CommonJavaTypeList = [
+  "long", "int", "short", "byte", "char", "float", "double", "boolean",
+  "String", "Object", "List", "Collection", "Iterator", "Enumeration", "Future",
+  "Duration", "Executor", "Throwable", "Uri",  "Context", "Intent", "Parcelable", "Closeable",
+  "File", "InputStream", "OutputStream", "FileInputStream", "FileOutputStream", "ZipFile", 
+  "BufferedReader", "BufferedWriter",
+  "ByteBuffer",
+]
+
+def toValueClassNameStr(curVal, curType):
+  curValClassNameStr = curVal
+
+  if curType == "Map":
+    curValClassNameStr = "FridaAndroidUtil.mapToStr(%s)" % curVal
+  elif curType == "Set":
+    curValClassNameStr = "FridaAndroidUtil.setToStr(%s)" % curVal
+  elif curType == "byte[]":
+    curValClassNameStr = "FridaAndroidUtil.bytesToHexStr(%s)" % curVal
+  elif not (curType in CommonJavaTypeList):
+    curValClassNameStr = "FridaAndroidUtil.valueToNameStr(%s)" % curVal
+
+  print("curVal=%s, curType=%s => curValClassNameStr=%s" % (curVal, curType, curValClassNameStr))
+  return curValClassNameStr
 
 def toVariableName(origName):
   replacedArrName = origName.replace("[]", "Arr")
@@ -663,11 +688,15 @@ def genReturnPartCode(retType, funcCallCode, isCtor, className, funcNameVar, isF
     retPartCode = retPartTemplate_void.safe_substitute(funcCallCode=funcCallCode)
   else:
     retValName = genRetValueName(isCtor, className, retType, funcNameVar, isFuncOverload, overloadFuncNameSuffix)
+    if not retType:
+      retType = className
+    retValStr = toValueClassNameStr(retValName, retType)
+    retPartCallLogStr = retPartCallLogTemplate.safe_substitute(retValName=retValName, retValStr=retValStr)
     if isCtor:
       # ctor() function no return value, but self is the return value
-      retPartCode = retPartTemplate_ctor.safe_substitute(funcCallCode=funcCallCode, retValName=retValName)
+      retPartCode = retPartTemplate_ctor.safe_substitute(funcCallCode=funcCallCode, retValName=retValName, retPartCallLogStr=retPartCallLogStr)
     else:
-      retPartCode = retPartTemplate_nonVoid.safe_substitute(retValName=retValName, funcCallCode=funcCallCode)
+      retPartCode = retPartTemplate_nonVoid.safe_substitute(retValName=retValName, funcCallCode=funcCallCode, retPartCallLogStr=retPartCallLogStr)
   print("retPartCode=%s" % retPartCode)
   return retPartCode
 
@@ -701,50 +730,50 @@ def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
     funcNameSet.add(funcName)
   print("funcNameSet=%s" % funcNameSet)
 
-  printPropertyNameList = []
   propertyDefineLineStrList = []
-  for propIdx, toHookPropDict in enumerate(propertiesConfigDictList):
-    propertyDefineLineStr = toHookPropDict["propDefineWholeLineStr"]
-    print("  [%d] propDefineWholeLineStr=%s" % (propIdx, propertyDefineLineStr))
-    propertyDefineLineStr = hookPropIndent + propertyDefineLineStr
-    propertyDefineLineStrList.append(propertyDefineLineStr)
-    propName = toHookPropDict["propName"]
-    print("propName=%s" % propName)
-    printPropertyNameList.append(propName)
-
-  propertyDefineListStr = "\n".join(propertyDefineLineStrList)
-  print("propertyDefineListStr=%s" % propertyDefineListStr)
-
   proppertyHookValueStrList = []
-  for propIdx, propName in enumerate(printPropertyNameList):
+  # for propIdx, propName in enumerate(printPropertyNameList):
+  for propIdx, propInfoDict in enumerate(propertiesConfigDictList):
     if propIdx == 0:
       curSepStr = " "
     else:
       curSepStr = ", "
-    propertyHookName = propName
 
+    propertyDefineLineStr = propInfoDict["propDefineWholeLineStr"]
+    print("  [%d] propDefineWholeLineStr=%s" % (propIdx, propertyDefineLineStr))
+    propertyDefineLineStr = hookPropIndent + propertyDefineLineStr
+    propertyDefineLineStrList.append(propertyDefineLineStr)
+
+    propName = propInfoDict["propName"]
+    propType = propInfoDict["propType"]
+
+    propertyHookName = propName
     isFuncDupName = propName in funcNameSet
     print("isFuncDupName=%s" % isFuncDupName)
     if isFuncDupName:
       propertyHookName = "_%s" % propName
     print("propertyHookName=%s" % propertyHookName)
-    # printPropertyValueStr = '          + "%s %s=" + curObj.%s.value' % (curSepStr, propName, propertyHookName)
+
+    propValName = propValueNameTemplate.safe_substitute(propertyHookName=propertyHookName)
+    propValStr = toValueClassNameStr(propValName, propType)
     printPropertyValueStr = hookPrintPropertyValueTemplate.safe_substitute(
       hookPropIndent=hookPropIndent,
       curSepStr=curSepStr,
       propName=propName,
-      propertyHookName=propertyHookName
+      propValStr=propValStr
     )
     print("printPropertyValueStr=%s" % printPropertyValueStr)
     proppertyHookValueStrList.append(printPropertyValueStr)
   print("proppertyHookValueStrList=%s" % proppertyHookValueStrList)
+
+  propertyDefineListStr = "\n".join(propertyDefineLineStrList)
+  print("propertyDefineListStr=%s" % propertyDefineListStr)
 
   printPropertyValueListStr = "\n".join(proppertyHookValueStrList)
   print("printPropertyValueListStr=%s" % printPropertyValueListStr)
 
   printClassDetailCode = hookPrintClassDetailTemplate.safe_substitute(
     className=className,
-    # classSourceFilePath=classSourceFilePath,
     classDefineStr=classDefineStr,
     propertyDefineListStr=propertyDefineListStr,
     printPropertyValueListStr=printPropertyValueListStr
@@ -810,7 +839,8 @@ def genHookFuncCodeForSingleClass(curIdx, toHookClassDict):
       curParaType = curTypeParaDict["paraType"]
       paraTypeList.append(curParaType)
 
-      paraLineStr = '"%s": %s,' % (curParaName, curParaName)
+      curValStr = toValueClassNameStr(curParaName, curParaType)
+      paraLineStr = '"%s": %s,' % (curParaName, curValStr)
       paraLineStrList.append(paraLineStr)
     print("paraNameList=%s" % paraNameList)
     print("paraTypeList=%s" % paraTypeList)
