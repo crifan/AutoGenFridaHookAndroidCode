@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251127
+# Update: 20251128
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -42,7 +42,7 @@ subDelimeterStr = subDelimeterChar*subDelimeterNum
 
 hookPropIndent = "          "
 
-hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent + "$curSepStr$propName=" + curObj.$propertyHookName.value""")
+hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent+ "$curSepStr$propName=" + curObj.$propertyHookName.value""")
 
 hookPrintClassDetailTemplate = string.Template("""  static printClass_$className(inputObj, prefixStr=""){
     FridaAndroidUtil.printClassTemplate(
@@ -72,28 +72,26 @@ hookClassTemplate = string.Template("""var clsName_$classNameVar = "$clsPkgName"
 funcCallTemplate = string.Template("this.$toCallFuncName($parasStr)")
 
 retPartTemplate_void = string.Template("""$funcCallCode
-        return""")
+      return""")
 retPartTemplate_nonVoid = string.Template("""var $retValName = $funcCallCode
-        console.log(funcName + " => $retValName=" + $retValName)
-        return $retValName""")
+      console.log(`${funcName} => ${$retValName}=${$retValName}`)
+      return $retValName""")
 retPartTemplate_ctor = string.Template("""$funcCallCode
-        var $retValName = this
-        console.log(funcName + " => $retValName=" + $retValName)
-        return""")
+      var $retValName = this
+      console.log(`${funcName} => ${$retValName}=${$retValName}`)
+      return""")
 
 hookCurFuncTemplate = string.Template("""
     $funcDefSrcHookCode
     // $funcDefFrida
     var $hookFuncName = cls_$classNameVar.$toFindFuncName
     console.log("$hookFuncName=" + $hookFuncName)
-    if ($hookFuncName) {
-      $hookFuncName.implementation = function ($parasStr) {
-        var funcName = "$displayFuncName"
-        var funcParaDict = {$paraDictStr}
-        curLogFunc(funcName, funcParaDict)
+    $hookFuncName.implementation = function ($parasStr) {
+      var funcName = "$displayFuncName"
+      var funcParaDict = {$paraDictStr}
+      curLogFunc(funcName, funcParaDict)
 
-        $retPartCode
-      }
+      $retPartCode
     }""")
 
 hookClassFuncTemplate = string.Template("""
@@ -109,7 +107,7 @@ hookClassFuncTemplate = string.Template("""
 
 allClassHookTemplate = string.Template("""
 class HookAppJava {
-$allPrintClassHookCode
+
 $allClassHookCode
 $allHookAppJavaCode
 }""")
@@ -147,8 +145,11 @@ overrideP = r"((?P<overrideStr>\@Override)[ \t]+)?"
 # public /* synthetic */ String A00() {
 # funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|(/\*\s+synthetic\s+\*/))\s+)*)"
 # funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|" + syntheticCommentP + r")\s+)*)"
+# public final /* bridge */ /* synthetic */ void k(Object obj) throws NumberFormatException {
 syntheticCommentP = r"(?P<syntheticComment>/\*\s*synthetic\s*\*/)"
 bridgeCommentP = r"(?P<bridgeComment>/\*\s*bridge\s*\*/)"
+# syntheticCommentP = r"(?P<syntheticComment>/\* synthetic \*/)"
+# bridgeCommentP = r"(?P<bridgeComment>/\* bridge \*/)"
 funcModifierP = r"(?P<funcModifier>(((protected)|(public)|(private)|(static)|(final)|(synchronized)|(abstract)|" + syntheticCommentP + r"|" + bridgeCommentP + r")\s+)*)"
 
 retTypeP = r"((?P<retType>[\w\.\[\]\<\>\, ]+)\s+)?"
@@ -357,7 +358,8 @@ def saveTextToFile(fullFilename, text, fileEncoding="utf-8"):
 ################################################################################
 
 def toVariableName(origName):
-  varName = re.sub(r"\W", "_", origName)
+  replacedArrName = origName.replace("[]", "Arr")
+  varName = re.sub(r"\W", "_", replacedArrName)
   return varName
 
 def genClassHookCode(classConfigDict, className, classNameVar, classPackage):
@@ -751,6 +753,16 @@ def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
   return printClassDetailCode
 
 def genHookCodeForSingleClass(curIdx, toHookClassDict):
+  global isGenPrintClassDetail
+  hookFuncCode = genHookFuncCodeForSingleClass(curIdx, toHookClassDict)
+  if isGenPrintClassDetail:
+    printClassDetailCode = genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict)
+    singleClassHookCode = printClassDetailCode + "\n" + hookFuncCode
+  else:
+    singleClassHookCode = hookFuncCode
+  return singleClassHookCode
+
+def genHookFuncCodeForSingleClass(curIdx, toHookClassDict):
   classConfigDict = toHookClassDict["class"]
   print("classConfigDict=%s" % classConfigDict)
   functionsConfigDictList = toHookClassDict["functions"]
@@ -808,7 +820,8 @@ def genHookCodeForSingleClass(curIdx, toHookClassDict):
     print("parasStr=%s" % parasStr)
 
     # paraDictPrefStr = "\n"
-    paraDictSufixfStr = "\n        "
+    # paraDictSufixfStr = "\n        "
+    paraDictSufixfStr = "\n      "
     paraDictPrefStr = paraDictSufixfStr + "  "
     if paraLineStrList:
       paraDictStr = paraDictPrefStr.join(paraLineStrList)
@@ -1182,27 +1195,14 @@ else:
 print("toHookDictList=%s" % toHookDictList)
 
 allClassCodeList = []
-allPrintClassDetailCodeList = []
-
 classNameList = []
 for curIdx, toHookClassDict in enumerate(toHookDictList):
   className = toHookClassDict["class"]["name"]
   classNameList.append(className)
 
-  classFuncStr = genHookCodeForSingleClass(curIdx, toHookClassDict)
-  allClassCodeList.append(classFuncStr)
-  if isGenPrintClassDetail:
-    printClassDetailCode = genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict)
-    allPrintClassDetailCodeList.append(printClassDetailCode)
-
-allPrintClassHookCode = ""
-if isGenPrintClassDetail:
-  # printClassSeperator = "\n"
-  printClassSeperator = "\n\n"
-  allPrintClassHookCode = printClassSeperator.join(allPrintClassDetailCodeList)
-  print("allPrintClassHookCode=%s" % allPrintClassHookCode)
-
-  allPrintClassHookCode = "\n" + allPrintClassHookCode + "\n"
+  singleClassHookCode = genHookCodeForSingleClass(curIdx, toHookClassDict)
+  print("singleClassHookCode=%s" % singleClassHookCode)
+  allClassCodeList.append(singleClassHookCode)
 
 allClassHookCode = "\n".join(allClassCodeList)
 print("allClassHookCode=%s" % allClassHookCode)
@@ -1214,7 +1214,7 @@ for eachClassName in classNameList:
 allHookAppJavaCode = "\n".join(hookAppJavaNameList)
 allHookAppJavaCode = "\n/*\n" + allHookAppJavaCode + "\n*/\n"
 
-finalOutputCode = allClassHookTemplate.safe_substitute(allPrintClassHookCode=allPrintClassHookCode, allClassHookCode=allClassHookCode, allHookAppJavaCode=allHookAppJavaCode)
+finalOutputCode = allClassHookTemplate.safe_substitute(allClassHookCode=allClassHookCode, allHookAppJavaCode=allHookAppJavaCode)
 print("finalOutputCode=%s" % finalOutputCode)
 
 saveTextToFile(outputFileFullPath, finalOutputCode)
