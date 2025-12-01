@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251128
+# Update: 20251201
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -360,12 +360,13 @@ def saveTextToFile(fullFilename, text, fileEncoding="utf-8"):
 
 CommonJavaTypeList = [
   "long", "int", "short", "byte", "char", "float", "double", "boolean",
-  "String", "Object", "List", "Collection", "Iterator", "Enumeration", "Future",
+  "String", "List", "Collection", "Iterator", "Enumeration", "Future",
   "Duration", "Executor", "Throwable", "Uri",  "Context", "Intent", "Parcelable", "Closeable",
   "File", "InputStream", "OutputStream", "FileInputStream", "FileOutputStream", "ZipFile", 
   "BufferedReader", "BufferedWriter",
   "ByteBuffer",
 ]
+
 
 def toValueClassNameStr(curVal, curType):
   curValClassNameStr = curVal
@@ -386,6 +387,12 @@ def toVariableName(origName):
   replacedArrName = origName.replace("[]", "Arr")
   varName = re.sub(r"\W", "_", replacedArrName)
   return varName
+
+def toValidParaName(curParaName):
+  validVarName = curParaName
+  if validVarName == "function":
+    validVarName = "curFunction"
+  return validVarName
 
 def genClassHookCode(classConfigDict, className, classNameVar, classPackage):
   global hookClassTemplate
@@ -834,13 +841,14 @@ def genHookFuncCodeForSingleClass(curIdx, toHookClassDict):
     paraLineStrList = []
     for curTypeParaDict in typeParaDictList:
       curParaName = curTypeParaDict["paraName"]
-      paraNameList.append(curParaName)
+      validParaName = toValidParaName(curParaName)
+      paraNameList.append(validParaName)
 
       curParaType = curTypeParaDict["paraType"]
       paraTypeList.append(curParaType)
 
-      curValStr = toValueClassNameStr(curParaName, curParaType)
-      paraLineStr = '"%s": %s,' % (curParaName, curValStr)
+      curValStr = toValueClassNameStr(validParaName, curParaType)
+      paraLineStr = '"%s": %s,' % (validParaName, curValStr)
       paraLineStrList.append(paraLineStr)
     print("paraNameList=%s" % paraNameList)
     print("paraTypeList=%s" % paraTypeList)
