@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251201
+# Update: 20251202
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -40,10 +40,12 @@ subDelimeterStr = subDelimeterChar*subDelimeterNum
 
 #-------------------- Global Template --------------------
 
-hookPropIndent = "          "
+hookTmpPropValIndent = "        "
+hookPropIndent = hookTmpPropValIndent + "  "
 
-propValueNameTemplate = string.Template("""curObj.$propertyHookName.value""")
-hookPrintPropertyValueTemplate = string.Template("""$hookPropIndent+ "$curSepStr$propName=" + $propValStr""")
+propValueNameTemplate = string.Template("""curObj.$hookPropName.value""")
+hookPrintPropertyValueTemplate = string.Template("""+ "$curSepStr$propName=" + $propValStr""")
+tmpPropValTemplate = string.Template("""var $tmpValName = $realPropValExprStr""")
 hookPrintClassDetailTemplate = string.Template("""  static printClass_$className(inputObj, prefixStr=""){
     FridaAndroidUtil.printClassTemplate(
       "$className",
@@ -53,6 +55,7 @@ hookPrintClassDetailTemplate = string.Template("""  static printClass_$className
         $classDefineStr
 $propertyDefineListStr
         */
+$tmpPropValListStr
 
         console.log(fullPrefixStr
 $printPropertyValueListStr
@@ -367,7 +370,6 @@ CommonJavaTypeList = [
   "ByteBuffer",
 ]
 
-
 def toValueClassNameStr(curVal, curType):
   curValClassNameStr = curVal
 
@@ -382,6 +384,16 @@ def toValueClassNameStr(curVal, curType):
 
   print("curVal=%s, curType=%s => curValClassNameStr=%s" % (curVal, curType, curValClassNameStr))
   return curValClassNameStr
+
+def toHookPropNameValExpr(propName, funcNameSet):
+  hookPropName = propName
+
+  isFuncDupName = propName in funcNameSet
+  print("isFuncDupName=%s" % isFuncDupName)
+  if isFuncDupName:
+    hookPropName = "_%s" % propName
+  print("propName=%s => hookPropName=%s" % (propName, hookPropName))
+  return hookPropName
 
 def toVariableName(origName):
   replacedArrName = origName.replace("[]", "Arr")
@@ -708,7 +720,7 @@ def genReturnPartCode(retType, funcCallCode, isCtor, className, funcNameVar, isF
   return retPartCode
 
 def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
-  global hookPropIndent, hookPrintPropertyValueTemplate, hookPrintClassDetailTemplate
+  global hookPropIndent, hookTmpPropValIndent, hookPrintPropertyValueTemplate, hookPrintClassDetailTemplate
 
   classSourceFilePath = toHookClassDict.get("filePath", "")
   print("classSourceFilePath=%s" % classSourceFilePath)
@@ -739,6 +751,7 @@ def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
 
   propertyDefineLineStrList = []
   proppertyHookValueStrList = []
+  tmpPropValLineStrList = []
   # for propIdx, propName in enumerate(printPropertyNameList):
   for propIdx, propInfoDict in enumerate(propertiesConfigDictList):
     if propIdx == 0:
@@ -754,35 +767,42 @@ def genPrintClassDetailCodeForSingleClass(curIdx, toHookClassDict):
     propName = propInfoDict["propName"]
     propType = propInfoDict["propType"]
 
-    propertyHookName = propName
-    isFuncDupName = propName in funcNameSet
-    print("isFuncDupName=%s" % isFuncDupName)
-    if isFuncDupName:
-      propertyHookName = "_%s" % propName
-    print("propertyHookName=%s" % propertyHookName)
+    hookPropName = toHookPropNameValExpr(propName, funcNameSet)
+    realPropValExprStr = propValueNameTemplate.safe_substitute(hookPropName=hookPropName)
+    tmpValName = "%sVal" % propName
+    tmpPropValLineStr = tmpPropValTemplate.safe_substitute(
+      tmpValName=tmpValName,
+      realPropValExprStr=realPropValExprStr
+    )
+    tmpPropValLineStr = hookTmpPropValIndent + tmpPropValLineStr
+    propValStr = toValueClassNameStr(tmpValName, propType)
+    tmpPropValLineStrList.append(tmpPropValLineStr)
 
-    propValName = propValueNameTemplate.safe_substitute(propertyHookName=propertyHookName)
-    propValStr = toValueClassNameStr(propValName, propType)
     printPropertyValueStr = hookPrintPropertyValueTemplate.safe_substitute(
-      hookPropIndent=hookPropIndent,
       curSepStr=curSepStr,
       propName=propName,
       propValStr=propValStr
     )
+    printPropertyValueStr = hookPropIndent + printPropertyValueStr
     print("printPropertyValueStr=%s" % printPropertyValueStr)
     proppertyHookValueStrList.append(printPropertyValueStr)
-  print("proppertyHookValueStrList=%s" % proppertyHookValueStrList)
 
+  print("propertyDefineLineStrList=%s" % propertyDefineLineStrList)
   propertyDefineListStr = "\n".join(propertyDefineLineStrList)
   print("propertyDefineListStr=%s" % propertyDefineListStr)
 
+  print("tmpPropValLineStrList=%s" % tmpPropValLineStrList)
+  tmpPropValListStr = "\n".join(tmpPropValLineStrList)
+  print("tmpPropValListStr=%s" % tmpPropValListStr)
+
+  print("proppertyHookValueStrList=%s" % proppertyHookValueStrList)
   printPropertyValueListStr = "\n".join(proppertyHookValueStrList)
   print("printPropertyValueListStr=%s" % printPropertyValueListStr)
-
   printClassDetailCode = hookPrintClassDetailTemplate.safe_substitute(
     className=className,
     classDefineStr=classDefineStr,
     propertyDefineListStr=propertyDefineListStr,
+    tmpPropValListStr=tmpPropValListStr,
     printPropertyValueListStr=printPropertyValueListStr
   )
   print("printClassDetailCode=%s" % printClassDetailCode)
