@@ -183,7 +183,20 @@ funcDefTailP_noBody = funcDefTailCommaP + funcDefTailCommentP + r"$"
 
 # funcDefP_common = overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP
 # funcDefP_common = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + tailP + r")"
-funcDefP_common = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + r")"
+# funcDefP_common = r"(?P<functionDefine>" + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + r")"
+
+#     /* renamed from: d, reason: merged with bridge method [inline-methods] */
+#     /* renamed from: f */
+# renamedFromP = r"(/\* renamed from: (?P<origFuncName>[\w\$]+)[^\*]+?\*/$\s*" + gFunctionPropertyIndentP + r")?"
+"""
+    /* renamed from: d, reason: merged with bridge method [inline-methods] */
+    /*
+        Code decompiled incorrectly, please refer to instructions dump.
+    */
+    public final Object c(awpt awptVar, buza buzaVar) throws Throwable {
+"""
+renamedFromP = r"(/\* renamed from: (?P<origFuncName>[\w\$]+)[^\*]+?\*/$\s*" + r"(" + gFunctionPropertyIndentP + r"/\*\s" + gFunctionPropertyIndentP + r"\s+[^\r\n]+\s*" + gFunctionPropertyIndentP + r"\*/\s*" + r")?" + gFunctionPropertyIndentP + r")?"
+funcDefP_common = r"(?P<functionDefine>" + renamedFromP + overrideP + funcModifierP + retTypeP + funcNameP + r"\(" + typeParasP + r"\)" + throwsP + r")"
 
 #     public final int a(bxmk bxmk0) {
 #     static void d(ehsd ehsd0, ehse ehse0, String s) {
@@ -429,10 +442,17 @@ def genClassHookCode(classConfigDict, className, classNameVar, classPackage):
 def parseFunctionDefineSource(funcIdx, funcDefSrc):
   global funcDefP_common
 
-  funcDefMatch = re.search(funcDefP_common, funcDefSrc)
+  funcDefMatch = re.search(funcDefP_common, funcDefSrc, re.MULTILINE)
   if funcDefMatch:
     funcDefP_common_Str = funcDefMatch.group(0)
     print("funcDefP_common_Str=%s" % funcDefP_common_Str)
+
+    funcName = funcDefMatch.group("funcName")
+    print("funcName=%s" % funcName)
+    origFuncName = funcDefMatch.group("origFuncName")
+    if origFuncName:
+      print("! Found renamed from: origFuncName=%s => renamed funcName=%s, reset it = use origFuncName" % (origFuncName, funcName))
+      funcName = origFuncName
 
     overrideStr = funcDefMatch.group("overrideStr")
     print("overrideStr=%s" % overrideStr)
@@ -443,8 +463,6 @@ def parseFunctionDefineSource(funcIdx, funcDefSrc):
     if retType:
       retType = retType.strip()
       print("stripped retType=%s" % retType)
-    funcName = funcDefMatch.group("funcName")
-    print("funcName=%s" % funcName)
     typeParas = funcDefMatch.group("typeParas")
     print("typeParas=%s" % typeParas)
     throwsStr = funcDefMatch.group("throwsStr")
@@ -936,6 +954,10 @@ def genHookFuncCodeForSingleClass(curIdx, toHookClassDict):
     isFuncDefSrcMultiLine = ("\r" in funcDefSrc) or ("\n" in funcDefSrc)
     print("isFuncDefSrcMultiLine=%s" % isFuncDefSrcMultiLine)
     if isFuncDefSrcMultiLine:
+      # funcDefSrc = funcDefSrc.replace("/*", "//")
+      # funcDefSrc = funcDefSrc.replace("*/", "//")
+      funcDefSrc = funcDefSrc.replace("/*", "/※")
+      funcDefSrc = funcDefSrc.replace("*/", "※/")
       indentStr = "    "
       funcDefSrcHookCode = "/* %s%s%s*/" % (funcDefSrc, os.linesep, indentStr)
     else:
