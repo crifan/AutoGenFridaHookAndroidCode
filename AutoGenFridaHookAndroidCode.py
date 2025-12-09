@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251204
+# Update: 20251209
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -37,6 +37,28 @@ mainDelimeterStr = mainDelimeterChar*mainDelimeterNum
 subDelimeterNum = 30
 subDelimeterChar = "-"
 subDelimeterStr = subDelimeterChar*subDelimeterNum
+
+OverloadParaTypeMappingDict = {
+  # FridaDexTypeMapppingDict_list
+  "char[]":   "[C",
+  "byte[]":   "[B",
+  "short[]":  "[S",
+  "int[]":    "[I",
+  "long[]":   "[J",
+  "float[]":  "[F",
+  "double[]": "[D",
+
+  "String[]": "[Ljava/lang/String;",
+  "Object[]": "[Ljava/lang/Object;",
+
+  # common Java
+  "Object":   "java.lang.Object",
+  "String":   "java.lang.String",
+  "Uri":      "android.net.Uri",
+
+  # misc
+  "Executor": "java.util.concurrent.Executor",
+}
 
 #-------------------- Global Template --------------------
 
@@ -673,6 +695,19 @@ def genOverloadParasFromFridaDefintion(funcDefFrida):
 
   return overloadParas
 
+def genFullTypeParaTypeList(paraTypeList):
+  global OverloadParaTypeMappingDict
+  fullTypeParaTypeList = []
+  for eachType in paraTypeList:
+    if eachType in OverloadParaTypeMappingDict:
+      fullType = OverloadParaTypeMappingDict[eachType]
+      print("eachType=%s -> fullType=%s" % (eachType, fullType))
+      print()
+    else:
+      fullType = eachType
+    fullTypeParaTypeList.append(fullType)
+  return fullTypeParaTypeList
+
 def genOverloadFuncNameSuffix(paraNameList):
   funcParaNum = len(paraNameList)
   print("funcParaNum=%s" % funcParaNum)
@@ -911,6 +946,8 @@ def genHookFuncCodeForSingleClass(curIdx, toHookClassDict):
     if isFuncOverload:
       overloadFuncNameSuffix = genOverloadFuncNameSuffix(paraNameList)
       print("overloadFuncNameSuffix=%s" % overloadFuncNameSuffix)
+      paraTypeList = genFullTypeParaTypeList(paraTypeList)
+      print("paraTypeList=%s" % paraTypeList)
 
     isCtor = funcName == className
     print("isCtor=%s" % isCtor)
