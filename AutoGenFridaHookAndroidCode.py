@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251209
+# Update: 20251212
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -54,10 +54,24 @@ OverloadParaTypeMappingDict = {
   # common Java
   "Object":   "java.lang.Object",
   "String":   "java.lang.String",
+  "Executor": "java.util.concurrent.Executor",
+  "Callable": "java.util.concurrent.Callable",
+
+  # Android
+  "Looper":   "android.os.Looper",
+  "Handler.Callback": "android.os.Handler$Callback",
   "Uri":      "android.net.Uri",
+  "Context":  "android.content.Context",
+  "Activity": "android.app.Activity",
+  "Service":  "android.app.Service",
+  "BroadcastReceiver": "android.content.BroadcastReceiver",
+  "ContentProvider": "android.content.ContentProvider",
+  "ContentResolver": "android.content.ContentResolver",
 
   # misc
-  "Executor": "java.util.concurrent.Executor",
+
+  # AndroidX
+  "ContextCompat": "androidx.core.content.ContextCompat",
 }
 
 #-------------------- Global Template --------------------
