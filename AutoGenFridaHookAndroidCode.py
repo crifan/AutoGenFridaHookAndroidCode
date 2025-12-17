@@ -56,6 +56,7 @@ OverloadParaTypeMappingDict = {
   "String":   "java.lang.String",
   "Executor": "java.util.concurrent.Executor",
   "Callable": "java.util.concurrent.Callable",
+  "TimeUnit": "java.util.concurrent.TimeUnit",
 
   # Android
   "Looper":   "android.os.Looper",
