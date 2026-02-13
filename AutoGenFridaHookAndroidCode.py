@@ -1,6 +1,6 @@
 # Function: Auto generate Frida hook js code for Android class and functions from config or (jadx/JEB decompiled) java source file
 # Author: Crifan Li
-# Update: 20251212
+# Update: 20260213
 # Link: https://github.com/crifan/AutoGenFridaHookAndroidCode/blob/main/AutoGenFridaHookAndroidCode.py
 
 import json
@@ -113,7 +113,8 @@ hookClassTemplate = string.Template("""var clsName_$classNameVar = "$clsPkgName"
 
 funcCallTemplate = string.Template("this.$toCallFuncName($parasStr)")
 
-retPartCallLogTemplate = string.Template("""console.log(`${funcName} => ${$retValName}=${$retValStr}`)""")
+# retPartCallLogTemplate = string.Template("""console.log(`${funcName} => ${$retValName}=${$retValStr}`)""")
+retPartCallLogTemplate = string.Template("""console.log(`$funcName => $retValName=${$retValStr}`)""")
 retPartTemplate_void = string.Template("""$funcCallCode
       return""")
 retPartTemplate_nonVoid = string.Template("""var $retValName = $funcCallCode
